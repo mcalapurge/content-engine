@@ -1,0 +1,35 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,Helvetica Neue,88,&H00FFFFFF,&H00F0EAFA,&H001E1E1E,&H80000000,-1,0,0,0,100,100,-2,0,1,0,2,2,90,90,576,1
+Style: Hook,Helvetica Neue,84,&H00FFFFFF,&H00FFFFFF,&H001E1E1E,&H80000000,-1,0,0,0,100,100,-5,0,1,0,2,8,80,80,230,1
+Style: Stat,Helvetica Neue,230,&H00F0EAFA,&H00F0EAFA,&H001E1E1E,&H00000000,-1,0,0,0,100,100,0,0,1,8,0,5,60,60,0,1
+Style: Badge,Helvetica Neue,64,&H001E1E1E,&H001E1E1E,&H00F0EAFA,&H00F0EAFA,-1,0,0,0,100,100,0,0,3,14,0,8,80,80,430,1
+Style: TakeBox,Arial,10,&H00F0EAFA,&H00F0EAFA,&H00F0EAFA,&H00F0EAFA,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: TakeText,Helvetica Neue,120,&H001E1E1E,&H001E1E1E,&H00F0EAFA,&H00F0EAFA,-1,0,0,0,100,100,0,0,1,0,0,5,90,90,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+
+Dialogue: 1,0:00:00.00,0:00:02.00,Hook,,0,0,0,,{\an8\pos(540,230)\fsp-5\fad(0,150)}YOU NEED TO CHARGE
+Dialogue: 1,0:00:00.00,0:00:02.00,Hook,,0,0,0,,{\an8\pos(540,310)\fsp-5\fad(0,150)}700 POUNDS STEP
+Dialogue: 1,0:00:00.00,0:00:02.00,Hook,,0,0,0,,{\an8\pos(540,390)\fsp-5\fad(0,150)}ONE...
+Dialogue: 1,0:00:01.83,0:00:03.33,Badge,,0,0,0,,{\fad(100,100)}step 1
+Dialogue: 1,0:00:03.23,0:00:03.29,Stat,,0,0,0,,{\pos(540,700)}8%
+Dialogue: 1,0:00:03.29,0:00:03.35,Stat,,0,0,0,,{\pos(540,700)}17%
+Dialogue: 1,0:00:03.35,0:00:03.41,Stat,,0,0,0,,{\pos(540,700)}26%
+Dialogue: 1,0:00:03.41,0:00:03.47,Stat,,0,0,0,,{\pos(540,700)}35%
+Dialogue: 1,0:00:03.47,0:00:03.53,Stat,,0,0,0,,{\pos(540,700)}43%
+Dialogue: 1,0:00:03.53,0:00:03.59,Stat,,0,0,0,,{\pos(540,700)}52%
+Dialogue: 1,0:00:03.59,0:00:03.65,Stat,,0,0,0,,{\pos(540,700)}61%
+Dialogue: 1,0:00:03.65,0:00:03.71,Stat,,0,0,0,,{\pos(540,700)}70%
+Dialogue: 1,0:00:03.71,0:00:04.83,Stat,,0,0,0,,{\pos(540,700)}{\fscx112\fscy112\t(0,160,\fscx100\fscy100)}70%
+Dialogue: 2,0:00:04.83,0:00:06.06,TakeBox,,0,0,0,,{\pos(0,0)\p1}m 0 0 l 1080 0 1080 1920 0 1920{\p0}
+Dialogue: 3,0:00:04.83,0:00:05.44,TakeText,,0,0,0,,{\fscx92\fscy92\t(0,140,\fscx100\fscy100)}so write
+Dialogue: 3,0:00:05.44,0:00:06.06,TakeText,,0,0,0,,{\fscx92\fscy92\t(0,140,\fscx100\fscy100)}it DOWN

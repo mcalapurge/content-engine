@@ -1,46 +1,43 @@
 ---
 name: content-tts
-description: Edit TikTok Shop product videos for Beth's shop account wornbybeth - split a batch-filmed take or a compilation into separate videos, captions only. Slash command only.
+description: Edit TikTok Shop product videos for a brand in brands/ - split a batch-filmed take or a compilation into separate videos, captions only by default. Slash command only.
 disable-model-invocation: true
-argument-hint: "[folder in input_shop/] [product name] [how many videos]"
+argument-hint: "<brand> [folder in inputs/shop/] [product name] [how many videos] [max size, eg 10mb]"
 ---
 
-# /content-tts - TikTok Shop wornbybeth
+# /content-tts - TikTok Shop videos
 
-Arguments: `$ARGUMENTS` (a folder inside `input_shop/`, the product name, maybe how many videos are in it).
+Arguments: `$ARGUMENTS` (the brand, a folder inside `inputs/shop/`, the product name, maybe how many videos are in it, maybe a size cap like `10mb`: that answers the file size question for this job).
 
-**Which files**: run `engine/inputs.py input_shop [folder]`. Folder given → every file in it. `ASK` → ask her which folder. No folders → every file in `input_shop/`. Each file is its own batch take or compilation: work through them one at a time, then give one combined approval table.
+**Which brand**: the brand named in the arguments or request (a folder in `brands/`; a shop account can be its own brand or a section of one, see its brand.md "accounts"). Not given and more than one brand → ask. Never guess.
 
-**First load the `video-pipeline` skill** and read `brand/brand.md`, `styles/beth.json`. Follow `video-pipeline/references/batch-split.md` (each part then goes through `talking-head.md`), then `references/checks.md`. This account only: not @beth.ejm.
+**Which files**: run `python -m engine inputs inputs/shop [folder]`. Folder given → every file in it. `ASK` → ask which folder. No folders → every file in `inputs/shop/`. Each file is its own batch take or compilation: work through them one at a time, then give one combined approval table.
 
-## the account
+**First load the `video-pipeline` skill**, then read `brands/<brand>/brand.md` (especially "tiktok shop defaults", captions, feedback history, open items), `brands/<brand>/effects.md`, `brands/<brand>/style.json`. Follow `video-pipeline/references/batch-split.md` (each part then goes through `talking-head.md`), then `references/checks.md`.
 
-- wornbybeth: try-on and product videos she earns commission on (past: Halara Wide Leg Trousers, wide-calf boots)
-- viewer: midsize UK women looking for clothes / shoes that fit. she shares her sizes (UK 16, 5'2", 17-inch calves, 34" waist / 46" hip, wears XL)
-- each video ~15-45s: one product, strong hook, honest try-on, recommendation at the end
-- **captions only** (`plan.py --no-text`): she adds her own on-screen text in the TikTok app
-- same look as her other videos: beth captions, pink keywords, her grade, quiet click on frame 1
+All styling, wording and defaults come from the brand's files. This skill only sets the order of work.
 
-## ask first (if not in the arguments)
+## ask first (if not in the arguments or the brand guide)
 
-1. the product name (spelling; add it to `keep_caps`, plus UK / XL style words)
+1. the product name (spelling; add it to `keep_caps` in the brand's style.json, plus size words like UK / XL)
 2. compilation: was it already colour graded? (yes = `--no-grade`, no `"grade": true` on b-roll)
 
-## what she sends
+## always ask (every job, even if the brand guide or an earlier job answered it)
+
+3. **file size**: "normal file, or a small h.265 one under 10MB for uploading?" they can name another cap ("under 8MB"). one answer covers every video in the job
+   - small → `--max-mb <cap>` on every part's `plan` (saved in its plan.json, so re-renders after feedback keep it without asking again). the small file is the only one made, named `<part>_<style>_<cap>mb.mp4`; there's no normal-size copy, so if they later want one, re-render with `--max-mb 0`
+   - normal → nothing to add (h.264, as usual)
+   - a video too long to fit the cap at a watchable quality is refused before rendering: say so and offer a higher cap or a tighter cut
+
+## what they send
 
 - **batch take**: several videos in one long take, all the same product, no cue between them, each starts with its own hook after a pause. drop false starts (short section then the same hook again)
-- **compilation**: clips stitched together (talking sections + silent close-ups / outfits). talking sections become videos; silent footage goes full screen under her voice; voiceover-only videos are possible; silent action moments (zip going up, her reaction) come back as b-roll
+- **compilation**: clips stitched together (talking sections + silent close-ups / outfits). talking sections become videos; silent footage goes full screen under their voice; voiceover-only videos are possible; silent action moments come back as b-roll
 
 ## the edit
 
-- transcribe parts with `--model medium` (product names get misheard)
+- transcribe parts, then check product names in the transcript (they get misheard)
+- `plan --brand <brand> --no-text` unless the brand guide says shop videos get on-screen text, plus `--max-mb <cap>` if they chose the small file
 - check retake groups; cut a last line that's really the next video's hook; cut garbled asides
-- 5'2" etc: merge into one caption word
-- keywords from the selling points (comfortable, stretch, padded, zip, XL, UK 16, 17-inch...)
-- punch-in on the sizing / proof / verdict line
-- one table of all videos → one "go" → `render.py <video> --cuts` on each (fix any FLASH) → render all in background → `qc.py` each + flash scan → one results table. no covers
-
-## known issues
-
-- captions at ~70% height can cover the product in full-body shots: offer a shop copy of the style with captions higher (batch-split.md)
-- pale pink accent barely shows (no deeper pink chosen yet)
+- keywords and punch-ins per the brand's shop defaults
+- one table of all videos (with the file choice: "normal" or "h.265, max 10MB") → one "go" → `render <video> --cuts` on each (fix any FLASH) → render all in background → `qc` each + flash scan → one results table (add each file's size when capped: qc FAILs anything over the cap or not h.265). covers only if asked

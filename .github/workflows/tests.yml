@@ -1,0 +1,90 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      transcribe:
+        description: "also run the real speech-to-text test (downloads parakeet)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 6 * * 1"     # mondays: the slow transcription test too
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - name: unused names, undefined names, syntax
+        run: ruff check --select F engine scripts tests
+      - name: every file compiles
+        run: python -m compileall -q engine scripts tests
+
+  logic:
+    # everything that doesn't render: plan, captions, timeline, brands, docs, migration...
+    name: logic (${{ matrix.os }}, python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    env:
+      REELS_SKIP_MEDIA: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install numpy
+      - run: python -m unittest -v
+
+  media:
+    # real renders with ffmpeg on synthetic clips, recipes compared with tests/golden/
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ffmpeg 7+ with every filter the engine uses (ubuntu's own is too old)
+        run: |
+          curl -sSL -o ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+          mkdir -p "$HOME/ffmpeg" && tar -xf ffmpeg.tar.xz -C "$HOME/ffmpeg" --strip-components=1
+          echo "$HOME/ffmpeg/bin" >> "$GITHUB_PATH"
+      - run: ffmpeg -version | head -1
+      - run: pip install numpy
+      - name: all tests (media ones included)
+        run: python -m unittest -v
+        env:
+          PYTHONIOENCODING: utf-8
+
+  transcribe:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.transcribe)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y espeak-ng
+      - name: ffmpeg 7+
+        run: |
+          curl -sSL -o ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+          mkdir -p "$HOME/ffmpeg" && tar -xf ffmpeg.tar.xz -C "$HOME/ffmpeg" --strip-components=1
+          echo "$HOME/ffmpeg/bin" >> "$GITHUB_PATH"
+      - run: pip install -r requirements.txt
+      - run: python -m unittest -v tests.test_transcribe
+        env:
+          RUN_TRANSCRIBE: "1"

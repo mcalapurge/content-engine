@@ -1,0 +1,118 @@
+{
+  "brand": "beth",
+  "style": "beth",
+  "duration": 9.099999999999998,
+  "graded": true,
+  "music": true,
+  "max_mb": null,
+  "broll": [
+    {
+      "start": 5.999999999999998,
+      "end": 7.2333333333333325,
+      "file": "<SANDBOX>/broll.mp4"
+    },
+    {
+      "start": 7.2333333333333325,
+      "end": 8.743333333333336,
+      "file": "<SANDBOX>/broll.mp4"
+    }
+  ],
+  "sfx": [
+    {
+      "time": 0.01000000000000005,
+      "name": "click",
+      "volume": 0.6
+    },
+    {
+      "time": 1.8266666666666662,
+      "name": "click",
+      "volume": 1.0
+    },
+    {
+      "time": 3.226666666666666,
+      "name": "pop",
+      "volume": 1.0
+    },
+    {
+      "time": 4.676666666666666,
+      "name": "whoosh",
+      "volume": 1.0
+    },
+    {
+      "time": 5.899999999999999,
+      "name": "swoosh",
+      "volume": 1.0
+    },
+    {
+      "time": 7.133333333333333,
+      "name": "swoosh",
+      "volume": 1.0
+    }
+  ],
+  "missing_sfx": [],
+  "segments": [
+    {
+      "start": 3.23,
+      "end": 4.996666666666666,
+      "new_start": 0.0,
+      "new_end": 1.7666666666666662,
+      "line": 2,
+      "motion": "slow",
+      "z0": 1.0,
+      "z1": 1.07
+    },
+    {
+      "start": 6.050000000000001,
+      "end": 7.550000000000001,
+      "new_start": 1.7666666666666662,
+      "new_end": 3.266666666666666,
+      "line": 3,
+      "motion": "jump",
+      "z0": 1.1,
+      "z1": 1.1
+    },
+    {
+      "start": 8.6,
+      "end": 10.1,
+      "new_start": 3.266666666666666,
+      "new_end": 4.766666666666666,
+      "line": 4,
+      "motion": "punch",
+      "z0": 1.2,
+      "z1": 1.2
+    },
+    {
+      "start": 11.15,
+      "end": 12.383333333333333,
+      "new_start": 4.766666666666666,
+      "new_end": 5.999999999999998,
+      "line": 5,
+      "motion": "jump",
+      "z0": 1.0,
+      "z1": 1.0
+    },
+    {
+      "start": 13.43,
+      "end": 14.663333333333334,
+      "new_start": 5.999999999999998,
+      "new_end": 7.2333333333333325,
+      "line": 6,
+      "motion": "slow",
+      "z0": 1.0,
+      "z1": 1.07
+    },
+    {
+      "start": 15.709999999999999,
+      "end": 17.576666666666664,
+      "new_start": 7.2333333333333325,
+      "new_end": 9.099999999999998,
+      "line": 7,
+      "motion": "jump",
+      "z0": 1.1,
+      "z1": 1.1
+    }
+  ],
+  "kept_word_count": 25,
+  "caption_events": 25,
+  "has_hook": true
+}

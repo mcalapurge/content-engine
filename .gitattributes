@@ -1,0 +1,2 @@
+# the mac setup script must keep unix line endings, even when checked out on windows
+*.sh text eol=lf
