@@ -17,10 +17,22 @@ from engine.core.common import (vin, SFX_DIR, find_bin, load_json, resolve_video
 SLOW_LINE_SECS = 6.0
 
 
-def thumb(video, t, path):
-    run([find_bin("ffmpeg"), "-y", *vin(video, "-ss", f"{t:.2f}"), "-frames:v", "1",
-         "-vf", f"{sdr_filter(video)}scale=-2:150", "-q:v", "5", str(path)])
-    return "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode()
+THUMBS_PER_RUN = 24      # thumbnails per ffmpeg run (each one is its own seek + decoder)
+
+
+def thumbs(video, times, paths):
+    """a small frame at each time, as data: urls. one ffmpeg run per THUMBS_PER_RUN thumbnails, each
+    with its own seek, instead of one run per line."""
+    sdr = sdr_filter(video)
+    for first in range(0, len(times), THUMBS_PER_RUN):
+        batch = list(zip(times, paths))[first:first + THUMBS_PER_RUN]
+        inputs, chains, outputs = [], [], []
+        for k, (t, path) in enumerate(batch):
+            inputs += vin(video, "-ss", f"{t:.2f}")
+            chains.append(f"[{k}:v]{sdr}scale=-2:150,trim=end_frame=1[t{k}]")
+            outputs += ["-map", f"[t{k}]", "-frames:v", "1", "-q:v", "5", str(path)]
+        run([find_bin("ffmpeg"), "-y", *inputs, "-filter_complex", ";".join(chains), *outputs])
+    return ["data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode() for path in paths]
 
 
 def main():
@@ -37,8 +49,9 @@ def main():
     tdir.mkdir(exist_ok=True)
 
     rows = []
-    for l in plan["lines"]:
-        img = thumb(video, (l["start"] + l["end"]) / 2, tdir / f"{l['id']:02d}.jpg")
+    images = thumbs(video, [(l["start"] + l["end"]) / 2 for l in plan["lines"]],
+                    [tdir / f"{l['id']:02d}.jpg" for l in plan["lines"]])
+    for l, img in zip(plan["lines"], images):
         rows.append({"id": l["id"], "secs": l["seconds"], "text": l["text"], "keep": l["keep"],
                      "reason": l["reason"], "motion": l["motion"], "treatment": l["treatment"],
                      "takes": l["takes"], "notes": l.get("notes", ""), "img": img,

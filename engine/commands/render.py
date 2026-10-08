@@ -1,7 +1,8 @@
 """step 3: render the approved plan into a finished, graded 9:16 reel.
 
 usage: python -m engine render [video] [--brand <name>] [--style <style>] [--music track.mp3] [--draft] [--no-grade]
-(brand and style default to the ones saved in plan.json)
+                                [--max-mb 10]
+(brand, style and the size cap default to the ones saved in plan.json)
 
 how a render is put together:
   1. timeline   the kept words become segments of the source clip, snapped to the real audio
@@ -9,7 +10,9 @@ how a render is put together:
   3. text       captions and graphics (hook, stat pops, badges, takeovers) are written as .ass files
   4. b-roll     laid over the edit on its lines, after the grade
   5. sound      speech, ducked music and sound effects, levelled for social
-  6. encode     one ffmpeg run reads a filter script (filter.txt) and writes the reel
+  6. encode     ffmpeg reads a filter script (filter.txt) and writes the reel. a long reel renders as 2-3
+                chunks at the same time (filter_part<n>.txt + filter_sound.txt), joined without re-encoding
+  7. size cap   with --max-mb (tiktok shop): re-encoded as h.265 under that size, the only output
 """
 import argparse
 import os
@@ -19,11 +22,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from engine.core.brand import add_brand_arg, get_brand, load_style
-from engine.core.common import (FONTS_DIR, IMAGE_EXTS, ROOT, SFX_DIR, WORK_DIR, content_type, die, find_bin, h264,
-                                load_json, norm, output_folder, resolve_video, run, save_json, sdr_filter, vin,
-                                work_dir_for)
+from engine.core.common import (FONTS_DIR, IMAGE_EXTS, ROOT, SFX_DIR, SMALL_MIN_BPS, content_type, die, encode_under,
+                                find_bin, h264, in_parallel, load_json, norm, output_folder, probe, resolve_video, run,
+                                save_json, sdr_filter, small_rate, vin, work_dir_for)
 from engine.core.contrast import MIN_RATIO, badge_colours, problems as contrast_problems, takeover_colours
 from engine.core.grade import grade_filter, has_huesaturation, load_grade
+from engine.core.scan import detect_scene_changes, scene_cuts, silence_map
 
 # ---------- output ----------
 FRAME_W, FRAME_H = 1080, 1920   # 9:16. cut previews swap in half size, see half_size_frames()
@@ -90,9 +94,13 @@ LOUDNESS = "I=-14:TP=-1.5:LRA=11"     # what instagram / tiktok play back at
 STEREO = f"aformat=sample_rates={SAMPLE_RATE}:channel_layouts=stereo"
 
 # ---------- checks ----------
-SCENE_DETECT = "scale=270:-2,scdet=threshold=8,metadata=mode=print:key=lavfi.scd.time"
 FLASH_GAP = 0.4          # two picture changes closer than this = a stray frame
-SILENCE_DETECT = "silencedetect=noise=-35dB:d=0.08"
+
+# ---------- speed ----------
+CHUNK_SECS = 15          # a final this long or more renders as parallel chunks (one per CHUNK_SECS, up to 3)
+MAX_CHUNKS = 3
+MIN_CHUNK_SECS = 8
+MASTER_BITRATE = "20M"   # with --max-mb: the full-quality copy the capped file is made from (work/, deleted after)
 
 
 # ---------- timeline ----------
@@ -215,24 +223,33 @@ def assign_zoom(segments, style):
             seg["z0"] = seg["z1"] = 1.0
 
 
-def frame_filter(seg, src_w, src_h):
-    """cover-fit to 9:16 and zoom down to the output size.
+def frame_filter(seg, src_w, src_h, sdr=""):
+    """cover-fit to 9:16 and zoom down to the output size. `sdr` = the hdr conversion (sdr_filter), if any.
     still framing (jump cuts, punch-ins, no zoom): crop the exact same window straight from the
-    source and scale once. ~6x less work than going via a 2x copy, identical framing.
+    source and scale once. ~6x less work than going via a 2x copy, identical framing. the crop comes
+    before the hdr conversion, so only the kept window is converted.
     slow push: cover-fit at 2x, then zoompan, so the moving crop lands on half pixels and doesn't judder."""
     if abs(seg["z1"] - seg["z0"]) < 1e-4:
         scale = max(FRAME_W / src_w, FRAME_H / src_h) * seg["z0"]
         crop_w, crop_h = min(src_w, FRAME_W / scale), min(src_h, FRAME_H / scale)
         return (f"crop={crop_w:.2f}:{crop_h:.2f}:{(src_w - crop_w) / 2:.2f}:{(src_h - crop_h) * FACE_Y:.2f},"
-                f"scale={FRAME_W}:{FRAME_H},setsar=1,fps={FPS}")
+                f"{sdr}scale={FRAME_W}:{FRAME_H},setsar=1")
     scale = max(2 * FRAME_W / src_w, 2 * FRAME_H / src_h)
     big_w, big_h = int(src_w * scale) // 2 * 2, int(src_h * scale) // 2 * 2
-    base = (f"scale={big_w}:{big_h},crop={2 * FRAME_W}:{2 * FRAME_H}:(iw-{2 * FRAME_W})/2:(ih-{2 * FRAME_H})*{FACE_Y},"
-            f"setsar=1,fps={FPS}")
+    base = (f"{sdr}scale={big_w}:{big_h},crop={2 * FRAME_W}:{2 * FRAME_H}:(iw-{2 * FRAME_W})/2:(ih-{2 * FRAME_H})*{FACE_Y},"
+            f"setsar=1")
     frames = max(1, round((seg["end"] - seg["start"]) * FPS))
     zoom = f"{seg['z0']:.5f}+{seg['z1'] - seg['z0']:.5f}*on/{frames}"
     return (base + f",zoompan=z='{zoom}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*{FACE_Y}'"
             f":d=1:s={FRAME_W}x{FRAME_H}:fps={FPS}")
+
+
+def segment_chain(index, seg, frames, video, src_w, src_h):
+    """one talking-head piece, from input `index`: timestamps from 0, 30 fps, exactly `frames` frames,
+    then the framing. frames are picked and counted before any picture work, so a 60 fps source or the
+    spare source read past the end is never converted, scaled or zoomed only to be thrown away."""
+    return (f"[{index}:v]setpts=PTS-STARTPTS,fps={FPS},tpad=stop_mode=clone:stop_duration=0.2,"
+            f"trim=end_frame={frames},{frame_filter(seg, src_w, src_h, sdr_filter(video))}")
 
 
 def fonts_dir_from(folder):
@@ -531,7 +548,9 @@ def overlay_events(plan, words, timed, total, style):
 
 
 def write_ass(path, style, events):
-    layer = {"Caption": 0, "TakeBox": 2, "TakeText": 3}     # everything else sits on layer 1
+    # captions sit above every graphic, so captions + graphics in one file draw exactly like two passes
+    # (graphics, then captions on top). everything else sits on layer 1
+    layer = {"Caption": 10, "TakeBox": 2, "TakeText": 3}
     lines = [ass_header(style)]
     for start, end, style_name, text in sorted(events, key=lambda event: (event[0], layer.get(event[2], 1))):
         lines.append(f"Dialogue: {layer.get(style_name, 1)},{ass_time(start)},{ass_time(end)},{style_name},,0,0,0,,{text}")
@@ -600,13 +619,14 @@ def broll_filter(input_index, start, end, spec, grade=""):
     frames = max(1, round((end - start) * FPS))
     pip = spec.get("mode") == "pip"
     box_w, box_h = (PIP_W, PIP_H) if pip else (FRAME_W, FRAME_H)
-    chain = (f"[{input_index}:v]{sdr_filter(spec['path'])}scale={box_w * 2}:{box_h * 2}:force_original_aspect_ratio=increase,"
-             f"crop={box_w * 2}:{box_h * 2},setsar=1,fps={FPS},"
+    # frames picked (30 fps) and counted before any picture work. a few spare frames: the start time rounds
+    # down to a whole frame, and if the b-roll runs out before its slot ends a frame of the talking shot
+    # flashes up. the overlay's enable ends it on time
+    chain = (f"[{input_index}:v]fps={FPS},tpad=stop_mode=clone:stop_duration=0.3,trim=end_frame={frames + 4},"
+             f"{sdr_filter(spec['path'])}scale={box_w * 2}:{box_h * 2}:force_original_aspect_ratio=increase,"
+             f"crop={box_w * 2}:{box_h * 2},setsar=1,"
              f"zoompan=z='1+{BROLL_PUSH}*on/{frames}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:s={box_w}x{box_h}:fps={FPS},"
-             # a few spare frames: the start time rounds down to a whole frame, and if the b-roll runs out
-             # before its slot ends a frame of the talking shot flashes up. the overlay's enable ends it on time
-             f"tpad=stop_mode=clone:stop_duration=0.3,"
-             f"trim=end_frame={frames + 4},format=yuv420p,setpts=PTS-STARTPTS+{start:.3f}/TB")
+             f"format=yuv420p,setpts=PTS-STARTPTS+{start:.3f}/TB")
     if grade and spec.get("grade"):   # "grade": true = raw footage that needs your grade too
         chain += "," + grade
     if pip:
@@ -673,45 +693,13 @@ def mix(labels, out_label, total, with_speech=True, loud=True):
     return chain + f",atrim=0:{total:.3f}[{out_label}]"
 
 
-# ---------- source analysis ----------
-
-def detect_scene_changes(video):
-    """picture-change times in a video file (ffmpeg scdet)."""
-    result = run([find_bin("ffmpeg"), "-hide_banner", *vin(video), "-an", "-vf", SCENE_DETECT, "-f", "null", "-"])
-    return [float(x) for x in re.findall(r"lavfi\.scd\.time=([\d.]+)", result.stdout + result.stderr)]
-
-
-def scene_cuts(video):
-    """times of hard cuts already inside the footage (eg a compilation). cached per file."""
-    stat = Path(video).stat()
-    cache = WORK_DIR / "_scenes" / f"{stat.st_ino}.json"     # by file identity, so linked copies share it
-    stamp = f"{stat.st_size}-{int(stat.st_mtime)}"
-    if cache.exists():
-        cached = load_json(cache)
-        if cached.get("stamp") == stamp:
-            return cached["cuts"]
-    cuts = detect_scene_changes(video)
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    save_json(cache, {"stamp": stamp, "cuts": cuts})
-    return cuts
-
-
-def silence_map(video):
-    """[(start, end)] of every quiet stretch in the clip's audio."""
-    result = run([find_bin("ffmpeg"), "-hide_banner", "-i", str(video), "-map", "0:a:0",
-                  "-af", SILENCE_DETECT, "-f", "null", "-"])
-    starts = [float(x) for x in re.findall(r"silence_start: (-?[\d.]+)", result.stderr)]
-    ends = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", result.stderr)]
-    return [(max(0.0, start), end) for start, end in zip(starts, ends + [float("inf")])]
-
-
 # ---------- build ----------
 
 @dataclass
 class Edit:
     """everything a render needs, worked out once and shared by the full render, the cut / spot
     previews and the capcut export."""
-    inputs: list          # ffmpeg input args, one list per input
+    inputs: list          # ffmpeg input args, one list per input: segments, then b-roll, music, sound effects
     filters: list         # filter script lines up to [graded] (picture) and [sp] (speech) + sound labels
     segments: list        # source segments in order (see build_segments)
     timed: dict           # word id -> (start, end) on the new timeline
@@ -723,13 +711,49 @@ class Edit:
     missing_sfx: list     # sound effect names with no file
     sound_labels: list    # filter labels of the music + sound effect tracks
     music: object         # the music track used, or None
+    video: object = None  # the source clip
+    size: tuple = ()      # its (width, height), upright
+    grade: str = ""       # the grade filter ("" = ungraded)
+    sound_filters: list = ()   # the lines after [speech]: music, ducking, sound effects (input numbers as in inputs)
+
+
+def segment_audio(index, seg):
+    """one talking-head piece's sound, with a tiny fade at each end so joins don't click."""
+    length = seg["end"] - seg["start"]
+    fade_out_at = max(0.0, length - SEGMENT_FADE)
+    return (f"[{index}:a]atrim=0:{length:.6f},asetpts=PTS-STARTPTS,"
+            f"afade=t=in:d={SEGMENT_FADE},afade=t=out:st={fade_out_at:.3f}:d={SEGMENT_FADE}[a{index}];")
+
+
+def on_frames(start, end):
+    """overlay enable for the frames nearest start..end (end not included). to the nearest frame, so a
+    b-roll edge snapped onto a cut always starts on the cut's first frame (no flash of the talking shot)."""
+    first, after = round(start * FPS), round(end * FPS)
+    return f"between(t,{(first - 0.5) / FPS:.4f},{(after - 0.5) / FPS:.4f})"
+
+
+def picture_after_concat(windows, first_input, grade, pixel_format=None):
+    """[vc] (the joined talking head) -> [graded]: the grade (in pixel_format, if given), then b-roll window
+    k (input first_input + k) on top, under the text. b-roll stays ungraded unless it's raw footage (its
+    spec says "grade": true)."""
+    head = f"format={pixel_format},{grade}" if grade and pixel_format else grade
+    lines = [f"[vc]{head if head else 'null'}[vcg];"]
+    picture = "vcg"
+    for number, (start, end, spec) in enumerate(windows):
+        lines.append(broll_filter(first_input + number, start, end, spec, grade) + f"[br{number}];")
+        place = PIP_PLACE if spec.get("mode") == "pip" else "x=0:y=0"
+        lines.append(f"[{picture}][br{number}]overlay={place}:enable='{on_frames(start, end)}'"
+                     f":eof_action=pass[vb{number}];")
+        picture = f"vb{number}"
+    return lines + [f"[{picture}]null[graded];"]
 
 
 def build(video, work_dir, plan, transcript, style, opts):
     """work out the edit and write its caption / graphics files. returns an Edit."""
     words = [dict(word) for word in transcript["words"]]
-    # cuts follow the real audio: hook lands instantly and no word gets clipped
-    segments, timed = build_segments(plan, words, silence_map(video), scene_cuts(video))
+    # cuts follow the real audio: hook lands instantly and no word gets clipped. both scans at once
+    silences, scenes = in_parallel(lambda scan: scan(video), [silence_map, scene_cuts], jobs=2)
+    segments, timed = build_segments(plan, words, silences, scenes)
     if not segments:
         die("every line is marked as cut - nothing left to render")
     assign_zoom(segments, style)
@@ -739,43 +763,31 @@ def build(video, work_dir, plan, transcript, style, opts):
     graphics = overlay_events(plan, words, timed, total, style)
     write_ass(work_dir / "captions.ass", style, captions)
     write_ass(work_dir / "graphics.ass", style, graphics)
+    write_ass(work_dir / "reel.ass", style, captions + graphics)     # what gets burned in: both, one pass
     windows = broll_windows(plan, timed, total, [seg["new_start"] for seg in segments] + [total])
 
     # each shot reads only its own stretch of the source (no decoding the whole file)
     inputs = [vin(video, "-ss", f"{seg['start']:.3f}", "-t", f"{seg['end'] - seg['start'] + SOURCE_READ_EXTRA:.3f}")
               for seg in segments]
+    size = (transcript["width"], transcript["height"])
     filters = []
     for index, seg in enumerate(segments):
-        length = seg["end"] - seg["start"]
-        filters.append(f"[{index}:v]setpts=PTS-STARTPTS,"
-                       f"{sdr_filter(video)}{frame_filter(seg, transcript['width'], transcript['height'])},"
-                       f"tpad=stop_mode=clone:stop_duration=0.2,trim=end_frame={seg['frames']}[v{index}];")
-        fade_out_at = max(0.0, length - SEGMENT_FADE)
-        filters.append(f"[{index}:a]atrim=0:{length:.3f},asetpts=PTS-STARTPTS,"
-                       f"afade=t=in:d={SEGMENT_FADE},afade=t=out:st={fade_out_at:.3f}:d={SEGMENT_FADE}[a{index}];")
+        filters.append(segment_chain(index, seg, seg["frames"], video, *size) + f"[v{index}];")
+        filters.append(segment_audio(index, seg))
+    # the join counts time in microseconds and drifts a little: back to exact frame times, so captions,
+    # graphics and b-roll land on the same frames in a one-pass render, a chunk of it or a cut preview
     filters.append("".join(f"[v{index}][a{index}]" for index in range(len(segments))) +
-                   f"concat=n={len(segments)}:v=1:a=1[vc][speech];")
+                   f"concat=n={len(segments)}:v=1:a=1[vjoin][speech];[vjoin]settb=1/{FPS}[vc];")
 
     # grade the talking head only. b-roll goes on after, untouched (it's already edited)
     grade = opts["grade"]
-    filters.append(f"[vc]{grade if grade else 'null'}[vcg];")
-
-    # b-roll on top of the edit, under the text
-    picture = "vcg"
-    for number, (start, end, spec) in enumerate(windows):
-        input_index = len(inputs)
-        inputs.append(broll_input(spec, start, end))
-        filters.append(broll_filter(input_index, start, end, spec, grade) + f"[br{number}];")
-        place = PIP_PLACE if spec.get("mode") == "pip" else "x=0:y=0"
-        filters.append(f"[{picture}][br{number}]overlay={place}:enable='between(t,{start:.3f},{end:.3f})'"
-                       f":eof_action=pass[vb{number}];")
-        picture = f"vb{number}"
-    filters.append(f"[{picture}]null[graded];")
+    filters += picture_after_concat(windows, len(inputs), grade)
+    inputs += [broll_input(spec, start, end) for start, end, spec in windows]
 
     # ---- audio: speech, ducked music, sound effects
     sound = plan.get("sound", {})
     music = opts.get("music") or sound.get("music")
-    sound_labels = []
+    sound_labels, sound_filters = [], []
     if music:
         music_path = Path(music)
         if not music_path.is_absolute():
@@ -786,16 +798,16 @@ def build(video, work_dir, plan, transcript, style, opts):
         inputs.append(["-stream_loop", "-1", "-i", str(music_path)])
         volume = opts.get("music_volume") or sound.get("music_volume", MUSIC_VOLUME)
         # speech splits three ways: the mix, the music's ducking key, and a spare to sink
-        filters.append("[speech]asplit=3[sp][sc][spx];")
-        filters.append(f"[{input_index}:a]{STEREO},volume={volume},"
-                       f"atrim=0:{total:.3f},afade=t=out:st={max(0, total - MUSIC_FADE_OUT):.3f}:d={MUSIC_FADE_OUT}[mraw];")
+        sound_filters.append("[speech]asplit=3[sp][sc][spx];")
+        sound_filters.append(f"[{input_index}:a]{STEREO},volume={volume},"
+                             f"atrim=0:{total:.3f},afade=t=out:st={max(0, total - MUSIC_FADE_OUT):.3f}:d={MUSIC_FADE_OUT}[mraw];")
         # the ducking key is padded so it never runs out before the music does: when it ended first, the
         # compressor stopped and the last ~0.1-0.3s of music (a different amount each run) went missing
-        filters.append(f"[sc]{STEREO},apad[scs];")
-        filters.append(f"[mraw][scs]sidechaincompress={MUSIC_DUCK}[music];")
+        sound_filters.append(f"[sc]{STEREO},apad[scs];")
+        sound_filters.append(f"[mraw][scs]sidechaincompress={MUSIC_DUCK}[music];")
         sound_labels.append("music")
     else:
-        filters.append("[speech]asplit=2[sp][spx];")
+        sound_filters.append("[speech]asplit=2[sp][spx];")
     cues = sfx_cues(plan, words, timed, windows)
     missing = set()
     sfx_volume = sound.get("sfx_volume", SFX_VOLUME)
@@ -807,13 +819,14 @@ def build(video, work_dir, plan, transcript, style, opts):
         input_index = len(inputs)
         inputs.append(["-i", str(path)])
         delay_ms = int(time * 1000)
-        filters.append(f"[{input_index}:a]{STEREO},volume={sfx_volume * volume:.3f},"
-                       f"adelay={delay_ms}|{delay_ms}[fx{number}];")
+        sound_filters.append(f"[{input_index}:a]{STEREO},volume={sfx_volume * volume:.3f},"
+                             f"adelay={delay_ms}|{delay_ms}[fx{number}];")
         sound_labels.append(f"fx{number}")
-    filters.append("[spx]anullsink;")
-    return Edit(inputs=inputs, filters=filters, segments=segments, timed=timed, total=total,
+    sound_filters.append("[spx]anullsink;")
+    return Edit(inputs=inputs, filters=filters + sound_filters, segments=segments, timed=timed, total=total,
                 captions=captions, graphics=graphics, windows=windows, cues=cues,
-                missing_sfx=sorted(missing), sound_labels=sound_labels, music=music)
+                missing_sfx=sorted(missing), sound_labels=sound_labels, music=music,
+                video=video, size=size, grade=grade, sound_filters=sound_filters)
 
 
 def ffmpeg_with_inputs(inputs):
@@ -886,9 +899,9 @@ def flash_times(video, offset):
 
 
 def _render_windows(video, windows, edit, transcript, grade, style, preview_dir, kind="cut"):
-    """render each window of the finished edit as its own labelled clip. returns
+    """render each window of the finished edit as its own labelled clip, three at a time. returns
     (clips, report) where report is [(number, label, flash times)]."""
-    clips, report = [], []
+    jobs = []
     fonts = fonts_dir_from(preview_dir)
     for number, (window_start, window_end, points) in enumerate(windows, 1):
         window_len = window_end - window_start
@@ -911,14 +924,13 @@ def _render_windows(video, windows, edit, transcript, grade, style, preview_dir,
             index = len(video_labels)
             inputs.append(vin(video, "-ss", f"{piece['start']:.3f}",
                               "-t", f"{piece['end'] - piece['start'] + SOURCE_READ_EXTRA:.3f}"))
-            filters.append(f"[{index}:v]setpts=PTS-STARTPTS,"
-                           f"{sdr_filter(video)}{frame_filter(piece, transcript['width'], transcript['height'])},"
-                           f"tpad=stop_mode=clone:stop_duration=0.2,trim=end_frame={frames}[v{index}];")
-            filters.append(f"[{index}:a]atrim=0:{piece['end'] - piece['start']:.3f},asetpts=PTS-STARTPTS[a{index}];")
+            filters.append(segment_chain(index, piece, frames, video, transcript["width"], transcript["height"])
+                           + f"[v{index}];")
+            filters.append(f"[{index}:a]atrim=0:{piece['end'] - piece['start']:.6f},asetpts=PTS-STARTPTS[a{index}];")
             video_labels.append(f"[v{index}]")
             audio_labels.append(f"[a{index}]")
         filters.append("".join(v + a for v, a in zip(video_labels, audio_labels)) +
-                       f"concat=n={len(video_labels)}:v=1:a=1[vc][speech];")
+                       f"concat=n={len(video_labels)}:v=1:a=1[vjoin][speech];[vjoin]settb=1/{FPS}[vc];")
         filters.append(f"[vc]{grade if grade else 'null'}[vcg];")
         picture = "vcg"
         for broll_number, (start, end, spec) in enumerate(edit.windows):
@@ -929,26 +941,32 @@ def _render_windows(video, windows, edit, transcript, grade, style, preview_dir,
             input_index = len(inputs)
             inputs.append(broll_input(local_spec, local_start, local_end))
             filters.append(broll_filter(input_index, local_start, local_end, local_spec, grade) + f"[br{broll_number}];")
-            filters.append(f"[{picture}][br{broll_number}]overlay=0:0:enable='between(t,{local_start:.3f},"
-                           f"{local_end:.3f})':eof_action=pass[vb{broll_number}];")
+            filters.append(f"[{picture}][br{broll_number}]overlay=0:0:enable='{on_frames(local_start, local_end)}'"
+                           f":eof_action=pass[vb{broll_number}];")
             picture = f"vb{broll_number}"
-        write_ass(preview_dir / f"cap_{number}.ass", style, _shift_events(edit.captions, window_start, window_end))
-        write_ass(preview_dir / f"gfx_{number}.ass", style, _shift_events(edit.graphics, window_start, window_end))
+        write_ass(preview_dir / f"text_{number}.ass", style,
+                  _shift_events(edit.captions, window_start, window_end) +
+                  _shift_events(edit.graphics, window_start, window_end))
         label = " + ".join(f"{point:.1f}s" for point in points)
-        filters.append(f"[{picture}]subtitles=gfx_{number}.ass:fontsdir={fonts},subtitles=cap_{number}.ass:fontsdir={fonts},"
+        filters.append(f"[{picture}]subtitles=text_{number}.ass:fontsdir={fonts},"
                        f"drawtext=text='{kind} {number} at {label}':x=30:y=40:fontsize=24:fontcolor=yellow:box=1:boxcolor=black@0.6,"
                        f"format=yuv420p[vout];")
         filters.append(f"[speech]{STEREO},"
                        f"apad=whole_dur={window_len:.3f},atrim=0:{window_len:.3f}[aout]")
-        (preview_dir / "filter.txt").write_text("\n".join(filters), encoding="utf-8")
+        (preview_dir / f"filter_{number}.txt").write_text("\n".join(filters), encoding="utf-8")
         out = preview_dir / f"{kind}_{number:02d}.mp4"
-        run(ffmpeg_with_inputs(inputs) + ["-/filter_complex", "filter.txt", "-map", "[vout]", "-map", "[aout]",
-                                          *h264(draft=True), "-r", str(FPS),
-                                          "-c:a", "aac", "-b:a", "128k", "-t", f"{window_len:.3f}", str(out)],
-            cwd=preview_dir)
-        report.append((number, label, flash_times(out, window_start)))
-        clips.append(out)
-    return clips, report
+        jobs.append((number, label, window_start, out,
+                     ffmpeg_with_inputs(inputs) + ["-/filter_complex", f"filter_{number}.txt", "-map", "[vout]",
+                                                   "-map", "[aout]", *h264(draft=True), "-r", str(FPS),
+                                                   "-c:a", "aac", "-b:a", "128k", "-t", f"{window_len:.3f}", str(out)]))
+
+    def render_window(job):
+        number, label, window_start, out, cmd = job
+        run(cmd, cwd=preview_dir)
+        return number, label, flash_times(out, window_start)
+
+    report = in_parallel(render_window, jobs)
+    return [job[3] for job in jobs], report
 
 
 def join_clips(clips, preview_dir, joined):
@@ -1012,19 +1030,134 @@ def preview_spots(video, work_dir, transcript, style, edit, grade, spots, brand_
 
 # ---------- finished reel, cover, capcut pack ----------
 
-def render_reel(edit, work_dir, out, style_name, grade, draft):
+def chunk_plan(edit, count=None):
+    """where a final splits into chunks that render at the same time: [(first segment, segment after the last)].
+    a chunk only starts on a cut, never inside a b-roll shot (its push and its read of the clip are one
+    piece). everything else is per frame or by finished-reel time, so the chunks join seamlessly."""
+    segments = edit.segments
+    count = count or min(MAX_CHUNKS, int(edit.total // CHUNK_SECS))
+
+    def free(time):
+        return not any(start < time - 1e-6 and end > time + 1e-6 for start, end, _ in edit.windows)
+
+    starts, last = [0], 0.0
+    for number in range(1, count):
+        target = edit.total * number / count
+        options = [index for index in range(starts[-1] + 1, len(segments))
+                   if free(segments[index]["new_start"]) and segments[index]["new_start"] - last >= MIN_CHUNK_SECS
+                   and edit.total - segments[index]["new_start"] >= MIN_CHUNK_SECS]
+        if not options:
+            break
+        best = min(options, key=lambda index: abs(segments[index]["new_start"] - target))
+        starts.append(best)
+        last = segments[best]["new_start"]
+    return list(zip(starts, starts[1:] + [len(segments)]))
+
+
+def grade_format(edit):
+    """the pixel format ffmpeg settles on for the grade when the whole reel renders in one go. it picks it
+    from the whole graph: a slow zoom anywhere means 8-bit planar rgb (the zoom filter can't do more);
+    still shots only means packed rgb for 8-bit footage, 10/12-bit rgb for deeper footage (phone hdr is
+    already 8-bit by then). a chunk only has some of the shots, so it would pick on its own and the joins
+    could differ slightly: chunks are held to this one."""
+    if any(abs(seg["z1"] - seg["z0"]) >= 1e-4 for seg in edit.segments):
+        return "gbrp"
+    stream = next((s for s in probe(edit.video)["streams"] if s["codec_type"] == "video"), {})
+    depth = re.search(r"p(10|12)", stream.get("pix_fmt", ""))
+    if depth and not sdr_filter(edit.video):
+        return f"gbrp{depth.group(1)}le"
+    return "rgb24"
+
+
+def chunk_graph(edit, first, after, fonts):
+    """(inputs, filters) for the finished picture of segments first..after-1 only, ending at [vout].
+    frames keep their finished-reel times until the text is burned in, so the b-roll, the grade and every
+    caption and graphic (fades and pops included) land exactly as in a one-pass render."""
+    segments = edit.segments[first:after]
+    start_time, end_time = segments[0]["new_start"], segments[-1]["new_end"]
+    windows = [window for window in edit.windows if start_time - 1e-6 <= window[0] < end_time - 1e-6]
+    inputs = edit.inputs[first:after] + [broll_input(spec, start, end) for start, end, spec in windows]
+    filters = [segment_chain(index, seg, seg["frames"], edit.video, *edit.size) + f"[v{index}];"
+               for index, seg in enumerate(segments)]
+    # whole frames (as in build), then moved to where this chunk sits in the reel
+    first_frame = sum(seg["frames"] for seg in edit.segments[:first])
+    filters.append("".join(f"[v{index}]" for index in range(len(segments))) +
+                   f"concat=n={len(segments)}:v=1:a=0,settb=1/{FPS},setpts=PTS+{first_frame}[vc];")
+    filters += picture_after_concat(windows, len(segments), edit.grade, grade_format(edit))
+    filters.append(f"[graded]subtitles=reel.ass:fontsdir={fonts},setpts=PTS-STARTPTS[vout]")
+    return inputs, filters
+
+
+def sound_graph(edit):
+    """filters for the finished sound alone, ending at [aout]. the talking head's pieces are joined
+    against stand-in pictures of the same lengths, so every join lands where it does in a one-pass render."""
+    filters = []
+    for index, seg in enumerate(edit.segments):
+        filters.append(f"nullsrc=s=16x16:r={FPS},trim=end_frame={seg['frames']}[v{index}];")
+        filters.append(segment_audio(index, seg))
+    filters.append("".join(f"[v{index}][a{index}]" for index in range(len(edit.segments))) +
+                   f"concat=n={len(edit.segments)}:v=1:a=1[vc][speech];[vc]nullsink;")
+    return filters + list(edit.sound_filters) + [mix(edit.sound_labels, "aout", edit.total)]
+
+
+def render_chunks(edit, chunks, work_dir, out, video_codec, fonts):
+    """the picture as chunks at the same time (+ the sound on its own), then joined without re-encoding."""
+    def render(job):
+        if job == "sound":
+            (work_dir / "filter_sound.txt").write_text("\n".join(sound_graph(edit)), encoding="utf-8")
+            run(ffmpeg_with_inputs(edit.inputs) + ["-/filter_complex", "filter_sound.txt", "-map", "[aout]",
+                                                   "-c:a", "aac", "-b:a", "192k", "-ar", str(SAMPLE_RATE),
+                                                   str(work_dir / "part_sound.m4a")], cwd=work_dir)
+            return work_dir / "part_sound.m4a"
+        number, (first, after) = job
+        inputs, filters = chunk_graph(edit, first, after, fonts)
+        (work_dir / f"filter_part{number}.txt").write_text("\n".join(filters), encoding="utf-8")
+        part = work_dir / f"part_{number}.mp4"
+        run(ffmpeg_with_inputs(inputs) + ["-/filter_complex", f"filter_part{number}.txt", "-map", "[vout]",
+                                          *video_codec, "-an", str(part)], cwd=work_dir)
+        return part
+
+    jobs = ["sound"] + list(enumerate(chunks, 1))
+    sound, *parts = in_parallel(render, jobs, jobs=len(jobs))
+    part_list = work_dir / "parts.txt"
+    part_list.write_text("".join(f"file '{part.name}'\n" for part in parts), encoding="utf-8")
+    run([find_bin("ffmpeg"), "-y", "-f", "concat", "-safe", "0", "-i", part_list.name, "-i", sound.name,
+         "-map", "0:v", "-map", "1:a", "-c", "copy", "-movflags", "+faststart", str(out)], cwd=work_dir)
+    for leftover in [*parts, sound, part_list]:
+        leftover.unlink()
+
+
+def render_reel(edit, work_dir, out, style_name, grade, draft, max_mb=None, one_pass=False):
+    """the finished reel. long reels render as 2-3 chunks at once (one ffmpeg can only keep ~3 cores
+    busy); one_pass=True renders it in one go. max_mb: the only output is h.265 at most that size, made
+    from a full-quality copy in work/."""
     fonts = fonts_dir_from(work_dir)
     filters = list(edit.filters)
-    filters.append(f"[graded]subtitles=graphics.ass:fontsdir={fonts},"
-                   f"subtitles=captions.ass:fontsdir={fonts}[vout];")
+    filters.append(f"[graded]subtitles=reel.ass:fontsdir={fonts}[vout];")
     filters.append(mix(edit.sound_labels, "aout", edit.total))
+    chunks = [(0, len(edit.segments))] if one_pass else chunk_plan(edit)
     print(f"[engine] rendering {len(edit.segments)} cuts, {edit.total:.1f}s, style '{style_name}'"
           f"{', graded' if grade else ''}, {len(edit.windows)} b-roll, {len(edit.cues)} sound fx"
-          f"{', music' if edit.music else ''}...")
-    encode(edit.inputs, filters, ["-map", "[vout]", "-map", "[aout]"], out, work_dir, draft)
+          f"{', music' if edit.music else ''}{f', in {len(chunks)} parts at once' if len(chunks) > 1 else ''}...")
+    full = work_dir / "master.mp4" if max_mb else out
+    video_codec = [*h264(draft, MASTER_BITRATE if max_mb else None), "-r", str(FPS)]
+    try:
+        if len(chunks) == 1:
+            encode(edit.inputs, filters, ["-map", "[vout]", "-map", "[aout]"], full, work_dir, draft, video_codec)
+        else:
+            (work_dir / "filter.txt").write_text("\n".join(filters), encoding="utf-8")    # the whole recipe, for reference
+            render_chunks(edit, chunks, work_dir, full, video_codec, fonts)
+        if max_mb:
+            print(f"[engine] making the h.265 upload, max {max_mb:g}MB...")
+            size, tries = encode_under(full, out, max_mb, FPS, work_dir)
+            print(f"[engine] {size / 1e6:.2f}MB (cap {max_mb:g}MB){f', after {tries} tries' if tries > 1 else ''}")
+    finally:
+        if max_mb and full.exists():
+            full.unlink()
     if edit.missing_sfx:
         print(f"[engine] note: no sound file for {', '.join(edit.missing_sfx)} in assets/sfx/ - "
               "run python -m engine sfx to make the defaults")
+    return len(chunks)
 
 
 def save_cover(reel, cover, total):
@@ -1068,14 +1201,14 @@ def export_capcut(edit, work_dir, pack, plan, transcript, style):
     (pack / "HOW_TO_OPEN_IN_CAPCUT.txt").write_text(CAPCUT_HELP, encoding="utf-8")
 
 
-def save_edl(work_dir, plan, edit, brand, style_name, grade, out, cover, pack):
+def save_edl(work_dir, plan, edit, brand, style_name, grade, out, cover, pack, max_mb=None):
     """edl.json: what was rendered, for qc and for later fixes."""
     kept_words = [word_id for line in plan["lines"] if line["keep"] and line["treatment"] != "takeover"
                   for word_id in line["words"] if word_id in edit.timed]
     save_json(work_dir / "edl.json", {
         "output": str(out), "cover": str(cover) if cover else None, "capcut_pack": str(pack) if pack else None,
         "brand": brand.name, "style": style_name, "duration": edit.total, "graded": bool(grade),
-        "music": bool(edit.music),
+        "music": bool(edit.music), "max_mb": max_mb,
         "broll": [{"start": start, "end": end, "file": str(spec["file"])} for start, end, spec in edit.windows],
         "sfx": [{"time": time, "name": name, "volume": volume} for time, name, volume in edit.cues],
         "missing_sfx": edit.missing_sfx,
@@ -1109,6 +1242,11 @@ def parse_args():
                         help="only render around these times in the finished reel (secs), eg 8 or 8,41.5")
     parser.add_argument("--plan", default=None,
                         help="use another plan file (eg work/<clip>/plan_b.json) to try a fix without touching plan.json")
+    parser.add_argument("--max-mb", type=float, default=None,
+                        help="tiktok shop upload: the only output is h.265 at most this many MB (eg 10). "
+                             "overrides max_mb in plan.json, 0 = normal h.264")
+    parser.add_argument("--one-pass", action="store_true",
+                        help="render in one ffmpeg run instead of parallel chunks (slower, same picture)")
     return parser.parse_args()
 
 
@@ -1148,10 +1286,17 @@ def main():
         preview_cuts(video, work_dir, transcript, style, edit, grade, brand.name, args.pad, only)
         return
 
+    # size cap for uploads (tiktok shop): from --max-mb, else the plan's "max_mb". drafts are only for
+    # checking the edit, so they stay normal h.264
+    max_mb = args.max_mb if args.max_mb is not None else plan.get("max_mb")
+    max_mb = None if args.draft or not max_mb else float(max_mb)
+    if max_mb and small_rate(max_mb * 1_000_000, edit.total) < SMALL_MIN_BPS:    # say so before rendering anything
+        die(f"{edit.total:.0f}s won't fit in {max_mb:g}MB and still look ok. cut it shorter or raise --max-mb")
     # this render's own folder: output/<brand>/<talking-head|shop>/<date>_<time>_<job>/
     folder = output_folder(brand.name, content_type(video), work_dir.name)
-    out = folder / f"{work_dir.name}_{style_name}{'_draft' if args.draft else ''}.mp4"
-    render_reel(edit, work_dir, out, style_name, grade, args.draft)
+    suffix = "_draft" if args.draft else f"_{max_mb:g}mb" if max_mb else ""
+    out = folder / f"{work_dir.name}_{style_name}{suffix}.mp4"
+    render_reel(edit, work_dir, out, style_name, grade, args.draft, max_mb, args.one_pass)
     cover = None
     if args.cover:
         cover = folder / f"{work_dir.name}_{style_name}_cover.jpg"
@@ -1160,7 +1305,7 @@ def main():
     if args.capcut:
         pack = folder / f"{work_dir.name}_capcut"
         export_capcut(edit, work_dir, pack, plan, transcript, style)
-    save_edl(work_dir, plan, edit, brand, style_name, grade, out, cover, pack)
+    save_edl(work_dir, plan, edit, brand, style_name, grade, out, cover, pack, max_mb)
     print(f"[engine] rendered {out}" + (f"\n[engine] cover    {cover}" if cover else ""))
     if pack:
         print(f"[engine] capcut   {pack}")

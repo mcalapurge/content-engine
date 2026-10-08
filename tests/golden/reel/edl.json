@@ -4,6 +4,7 @@
   "duration": 9.099999999999998,
   "graded": true,
   "music": true,
+  "max_mb": null,
   "broll": [
     {
       "start": 5.999999999999998,

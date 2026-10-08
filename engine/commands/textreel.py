@@ -19,8 +19,8 @@ from pathlib import Path
 import numpy as np
 
 from engine.core.brand import add_brand_arg, get_brand, load_style
-from engine.core.common import (h264, vin, FONTS_DIR, MUSIC_DIR, ROOT, WORK_DIR, die, find_bin, load_json,
-                                output_folder, run, save_json, sdr_filter)
+from engine.core.common import (h264, vin, FONTS_DIR, MUSIC_DIR, ROOT, WORK_DIR, die, find_bin, in_parallel,
+                                load_json, output_folder, run, save_json, sdr_filter)
 from engine.commands.vlog import detect_beats
 
 W, H, FPS = 1080, 1920, 30
@@ -219,10 +219,12 @@ def render_reel(reel, wd, out_dir, st, vol, draft):
         clip = ROOT / shot["file"]
         inputs += vin(clip, "-ss", f"{float(shot.get('start', 0)):.3f}", "-t", f"{n / FPS + 0.4:.3f}")
         z0 = 1.0 if k % 2 == 0 else 1.04
-        f.append(f"[{k}:v]{sdr_filter(clip)}scale={2 * W}:{2 * H}:force_original_aspect_ratio=increase,"
-                 f"crop={2 * W}:{2 * H},setsar=1,fps={FPS},tpad=stop_mode=clone:stop_duration=4,"
+        # frames picked (30 fps) and counted (a short clip holds its last frame) before any picture work
+        f.append(f"[{k}:v]fps={FPS},tpad=stop_mode=clone:stop_duration=4,trim=end_frame={n},"
+                 f"{sdr_filter(clip)}scale={2 * W}:{2 * H}:force_original_aspect_ratio=increase,"
+                 f"crop={2 * W}:{2 * H},setsar=1,"
                  f"zoompan=z='{z0}+0.06*on/{n}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:s={W}x{H}:fps={FPS},"
-                 f"trim=end_frame={n},setpts=PTS-STARTPTS,format=yuv420p[v{k}];")
+                 f"setpts=PTS-STARTPTS,format=yuv420p[v{k}];")
     lines = [(edges[i], edges[i + 1], t) for i, t in enumerate(reel["beats"])]
     ass = wd / f"text_{reel['id']:02d}.ass"
     write_ass(ass, lines, st)
@@ -241,9 +243,10 @@ def render_reel(reel, wd, out_dir, st, vol, draft):
     else:
         f[-1] = f[-1].rstrip(";")
         amap = []
-    (wd / "filter.txt").write_text("\n".join(f), encoding="utf-8")
+    script = f"filter_{reel['id']:02d}.txt"      # one per reel: three render at once
+    (wd / script).write_text("\n".join(f), encoding="utf-8")
     out = out_dir / f"{wd.name}_{reel['id']:02d}{'_draft' if draft else ''}.mp4"
-    run([find_bin("ffmpeg"), "-y", *inputs, "-/filter_complex", "filter.txt", "-map", "[vout]", *amap,
+    run([find_bin("ffmpeg"), "-y", *inputs, "-/filter_complex", script, "-map", "[vout]", *amap,
          *h264(draft), "-r", str(FPS), "-movflags", "+faststart", "-t", f"{total:.3f}", str(out)], cwd=wd)
     return out, total
 
@@ -255,11 +258,14 @@ def cmd_render(args):
     st = load_style(plan.get("style") or brand.name, brand)
     only = {int(x) for x in args.only.split(",")} if args.only else None
     out_dir = output_folder(brand.name, "trial", args.name)     # output/<brand>/trial/<date>_<time>_<set>/
+    reels = [reel for reel in plan["reels"] if not only or reel["id"] in only]
+    for music in sorted({reel["music"] for reel in reels if reel.get("music")}):
+        music_info(ROOT / music)            # measured (and cached) once, before reels sharing it run at once
+    print(f"[engine] rendering {len(reels)} reel(s), three at a time...")
+    done = in_parallel(lambda reel: render_reel(reel, wd, out_dir, st, plan.get("music_volume", 0.9), args.draft),
+                       reels)
     caps = []
-    for reel in plan["reels"]:
-        if only and reel["id"] not in only:
-            continue
-        out, total = render_reel(reel, wd, out_dir, st, plan.get("music_volume", 0.9), args.draft)
+    for reel, (out, total) in zip(reels, done):
         print(f"[engine] reel {reel['id']:2}: {total:4.1f}s  {out.relative_to(ROOT)}")
         caps.append(f"## {reel['id']}. {reel['beats'][0]}\n\n{reel['caption']}\n\n(carousel: {reel['carousel']})\n")
     if not only:

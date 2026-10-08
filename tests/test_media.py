@@ -196,6 +196,65 @@ class TalkingHeadReel(unittest.TestCase):
         self.assertEqual((edl["style"], edl["graded"]), ("editorial", False))
         self.assertNotIn("lut3d", (self.wd / "filter.txt").read_text(encoding="utf-8"))
 
+    def test_chunks_render_exactly_the_frames_of_a_one_pass_render(self):
+        """the parallel chunks + separate sound, checked against the whole edit in one graph, frame by frame
+        before encoding (the encoder itself isn't byte-for-byte repeatable)."""
+        from engine.commands import render
+        from engine.core import common, grade
+        from engine.core.brand import Brand, load_style
+        plan = json.loads((self.wd / "plan.json").read_text(encoding="utf-8"))
+        transcript = json.loads((self.wd / "transcript.json").read_text(encoding="utf-8"))
+        brand = Brand("beth")
+        with mock.patch.object(common, "WORK_DIR", self.box.work), mock.patch.object(grade, "WORK_DIR", self.box.work):
+            edit = render.build(self.video, self.wd, plan, transcript, load_style(plan["style"], brand),
+                                {"grade": grade.grade_filter(grade.load_grade(brand))})
+        with mock.patch.object(render, "MIN_CHUNK_SECS", 2):
+            chunks = render.chunk_plan(edit, 3)
+        self.assertEqual(len(chunks), 3)
+        fonts = render.fonts_dir_from(self.wd)
+
+        def run_graph(inputs, filters, outputs):
+            (self.wd / "check.txt").write_text("\n".join(filters), encoding="utf-8")
+            subprocess.run(render.ffmpeg_with_inputs(inputs) + ["-v", "error", "-/filter_complex", "check.txt",
+                                                                 *outputs], cwd=self.wd, check=True)
+
+        def frames(path):
+            return [line.split(",")[-1].strip() for line in Path(path).read_text().splitlines()
+                    if not line.startswith("#")]
+        one = list(edit.filters) + [f"[graded]subtitles=reel.ass:fontsdir={fonts}[vout];",
+                                    render.mix(edit.sound_labels, "aout", edit.total)]
+        picture = ["-pix_fmt", "yuv420p", "-f", "framemd5"]        # what the encoder is handed in a real render
+        run_graph(edit.inputs, one, ["-map", "[vout]", *picture, "one.md5",
+                                     "-map", "[aout]", "-f", "f32le", "one.pcm"])
+        parts = []
+        for number, (first, after) in enumerate(chunks):
+            run_graph(*render.chunk_graph(edit, first, after, fonts), ["-map", "[vout]", *picture, f"part{number}.md5"])
+            parts += frames(self.wd / f"part{number}.md5")
+        run_graph(edit.inputs, render.sound_graph(edit), ["-map", "[aout]", "-f", "f32le", "sound.pcm"])
+        whole = frames(self.wd / "one.md5")
+        self.assertEqual(len(parts), len(whole))
+        self.assertEqual([n for n, (a, b) in enumerate(zip(whole, parts)) if a != b], [])
+        self.assertEqual((self.wd / "one.pcm").read_bytes(), (self.wd / "sound.pcm").read_bytes())
+
+    def test_size_capped_upload(self):
+        out = self.box.engine("render", self.video, "--max-mb", "3").stdout
+        edl = json.loads((self.wd / "edl.json").read_text(encoding="utf-8"))
+        reel = Path(edl["output"])
+        self.assertEqual(reel.name, "reel_beth_3mb.mp4")
+        self.assertEqual(edl["max_mb"], 3)
+        self.assertLessEqual(reel.stat().st_size, 3_000_000)
+        stream = video_stream(reel)
+        self.assertEqual((stream["codec_name"], stream["codec_tag_string"], stream["pix_fmt"], stream["width"]),
+                         ("hevc", "hvc1", "yuv420p", 1080))
+        self.assertTrue(has_audio(reel))
+        self.assertAlmostEqual(duration(reel), edl["duration"], delta=0.2)
+        self.assertEqual(list(reel.parent.glob("*.mp4")), [reel])           # instead of the normal file, not as well
+        self.assertFalse((self.wd / "master.mp4").exists())
+        self.assertIn("making the h.265 upload", out)
+        qc = self.box.engine("qc", self.video, check=False).stdout
+        self.assertIn("file size | PASS", qc)
+        self.assertIn("codec | PASS", qc)
+
     def test_review_page(self):
         self.box.engine("review", self.video, "--no-open")
         page = (self.wd / "review.html").read_text(encoding="utf-8")
@@ -224,11 +283,21 @@ class BatchTake(unittest.TestCase):
             self.assertEqual([s["hook"].split()[:2] for s in sections], [["hook", "one"], ["hook", "two"], ["hook", "three"]])
             self.assertIn("found 2 video(s)", box.engine("batch", "split", video, "--count", "2").stdout)
             box.engine("batch", "split", video, "--gap", "1.5")
-            box.engine("batch", "cut", video)
+            out = box.engine("batch", "cut", video).stdout
+            # the test clip has keyframes at 0s and 8.3s only: part 2's keyframe is back in part 1's speech, so
+            # it's re-encoded exactly; part 3's is in the pause before its hook, so it's copied from there
+            self.assertIn("video 2: batch/parts/batch_02.mp4  re-encoded", out.replace("work/", ""))
+            self.assertIn("copied from 0:08.3", out)
             parts = sorted((box.work / "batch" / "parts").glob("*.mp4"))
             self.assertEqual([p.name for p in parts], ["batch_01.mp4", "batch_02.mp4", "batch_03.mp4"])
+            words = json.loads((box.work / "batch" / "transcript.json").read_text(encoding="utf-8"))["words"]
             for part, section in zip(parts, sections):
-                self.assertAlmostEqual(duration(part), section["end"] - section["start"], delta=0.15)
+                early = duration(part) - (section["end"] - section["start"])
+                said_before = max((w["end"] for w in words if w["end"] <= section["start"]), default=0.0)
+                self.assertGreater(early, -0.15)
+                self.assertLess(early, section["start"] - said_before + 0.15)   # never reaches back into speech
+                starts = [float(s["start_time"]) for s in probe(part)["streams"]]
+                self.assertLess(max(starts) - min(starts), 0.05)               # picture and sound start together
             self.assertTrue(video.exists())                                  # the original is untouched
         finally:
             box.remove()
@@ -331,6 +400,10 @@ class BrollLibrary(unittest.TestCase):
             self.assertEqual(clips["work/_tests/broll-index/brands/beth/broll/flat-lay.jpg"]["kind"], "image")
             for clip in clips.values():
                 self.assertTrue((ROOT / clip["preview"]).exists())
+            # new clips are checked for built-in cuts now, so the first render using them doesn't wait
+            gummies = broll / "products" / "pouring-gummies.mp4"
+            self.assertIn("checking 1 new clip(s) for built-in cuts", out)
+            self.assertTrue((box.work / "_scenes" / f"{gummies.stat().st_ino}.json").exists())
             # descriptions claude writes survive a re-index, and unchanged clips aren't redone
             library = json.loads((broll / "library.json").read_text(encoding="utf-8"))
             for clip in library["clips"]:

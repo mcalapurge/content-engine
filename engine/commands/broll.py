@@ -13,8 +13,9 @@ import argparse
 import re
 
 from engine.core.brand import add_brand_arg, get_brand
-from engine.core.common import (vin, IMAGE_EXTS, ROOT, VIDEO_EXTS, find_bin, load_json, probe,
-                    resolve_video, run, save_json, work_dir_for)
+from engine.core.common import (vin, IMAGE_EXTS, ROOT, VIDEO_EXTS, find_bin, in_parallel, load_json, probe,
+                                resolve_video, run, save_json, work_dir_for)
+from engine.core.scan import scene_cuts
 
 STOP = set("""a an the and or but so to of in on at for with from by is are was were be been it its
 this that these those i im i'm you your my me we our they them he she his her just like really very
@@ -47,7 +48,7 @@ def cmd_index(brand):
     previews.mkdir(exist_ok=True)
     lib = load_lib(brand)
     known = {c["file"]: c for c in lib["clips"]}
-    clips = []
+    clips, scan = [], []
     for p in sorted(broll_dir.rglob("*")):
         if previews in p.parents or p.suffix.lower() not in VIDEO_EXTS | IMAGE_EXTS:
             continue
@@ -72,6 +73,7 @@ def cmd_index(brand):
                 fc = "".join(f"[{k}:v]scale=-2:400,trim=end_frame=1[f{k}];" for k in range(3))
                 run([find_bin("ffmpeg"), "-y", *inputs, "-filter_complex",
                      fc + "[f0][f1][f2]hstack=inputs=3", "-frames:v", "1", "-q:v", "4", str(prev)])
+                scan.append(p)
             entry["_stamp"] = stat_key
         entry["preview"] = prev.relative_to(ROOT).as_posix()
         auto = tokens(" ".join(p.relative_to(broll_dir).with_suffix("").parts).replace("-", " ").replace("_", " "))
@@ -79,6 +81,11 @@ def cmd_index(brand):
         clips.append(entry)
     lib["clips"] = clips
     save_json(brand.library, lib)
+    if scan:
+        # built-in cuts in the new clips, found now (three at a time) rather than holding up the first render
+        # that uses them. render reads the same cache
+        print(f"[engine] checking {len(scan)} new clip(s) for built-in cuts...")
+        in_parallel(scene_cuts, scan)
     todo = [c for c in clips if not c.get("description")]
     print(f"[engine] {len(clips)} clip(s) in the library, {len(todo)} need a description")
     for c in todo:

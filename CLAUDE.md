@@ -111,7 +111,7 @@ follow the `content-new-brand` skill (`/content-new-brand <name> [file]`). in sh
    - single word trims: add the word index to that line's `cut_words`
    - caption typos: fix the word in transcript.json (brand names and handles get misheard, check the brand's brand.md)
 8. **never render before they approve** ("yes", "go", "build it", or pasted review with "no changes").
-9. **render**: `python -m engine render [clip]` (uses the brand and style saved in plan.json). `--draft` for a quick preview. `--capcut` also exports a layer pack for finishing in capcut. `--no-grade` if they ask for it ungraded.
+9. **render**: `python -m engine render [clip]` (uses the brand, style and any size cap saved in plan.json). `--draft` for a quick preview. `--capcut` also exports a layer pack for finishing in capcut. `--no-grade` if they ask for it ungraded. a reel of 30s+ renders in 2-3 chunks at once (same frames as one go). `--max-mb <n>` (tiktok shop only, see below) makes the only output h.265 under that size.
 10. **qc**: `python -m engine qc [clip]`. show the table. **be honest**: FAIL means it failed, fix it before calling it done. explain warnings in one line.
 11. hand over the reel from its folder in `output/<brand>/<type>/` (the path the render printed). offer to write the post caption in the brand's voice (tone from its brand.md).
 
@@ -120,9 +120,10 @@ follow the `content-new-brand` skill (`/content-new-brand <name> [file]`). in sh
 some brands batch film several tiktok shop videos in one long take into `inputs/shop/`. all the same product. no cue between videos: each starts with a distinctive hook after a big pause. the brand's brand.md says how its shop videos should look.
 
 1. **split**: `python -m engine batch split inputs/shop/<video>` transcribes the whole file and splits at pauses of 1.5s+. read the table and check each section starts with a hook and makes sense on its own. if a split looks wrong, rerun with `--gap <secs>` or `--count <n>` (the number of videos they say are in there). ask for the product name once, and spell it right in captions.
-2. **cut**: `python -m engine batch cut inputs/shop/<video>` saves each video to `work/<video>/parts/<video>_01.mp4` etc. the original is never touched.
-3. for each part, the normal loop with the part's path: `transcribe`, `plan <part> --brand <brand> --no-text` (captions only: no hook card, stat pops or step badges, unless the brand guide says otherwise), `takes` if lines repeat, then fix transcript typos, pick keywords and motion. b-roll only if they ask.
-4. show all the beat tables together, one approval, render all, qc all, report in one table. each part lands in its own folder in `output/<brand>/shop/`.
+2. **file size (ask every job)**: "normal file, or a small h.265 one under 10MB for uploading?" (they can name another cap). small means `--max-mb <cap>` on each part's `plan` below: every render of that part is then h.265 under the cap (the only file made, `<part>_<style>_<cap>mb.mp4`) and qc FAILs it if it isn't. normal = nothing to add.
+3. **cut**: `python -m engine batch cut inputs/shop/<video>` saves each video to `work/<video>/parts/<video>_01.mp4` etc. (copied, not re-encoded, so a part can start a moment early in the pause before its hook). the original is never touched.
+4. for each part, the normal loop with the part's path: `transcribe`, `plan <part> --brand <brand> --no-text [--max-mb <cap>]` (captions only: no hook card, stat pops or step badges, unless the brand guide says otherwise), `takes` if lines repeat, then fix transcript typos, pick keywords and motion. b-roll only if they ask.
+5. show all the beat tables together (and the file choice), one approval, render all, qc all, report in one table. each part lands in its own folder in `output/<brand>/shop/`.
 
 ## b-roll / vlog edits ("edit my vlog <folder>")
 
@@ -179,4 +180,5 @@ no talking: a folder of clips becomes a short edit they add a voiceover to later
 
 - style: the brand's own `style.json`
 - capcut layer pack: only when asked (don't add `--capcut` by default)
+- file: normal h.264. the h.265 size cap (`--max-mb`) is only for tiktok shop videos, and only when they choose it for that job (asked every time)
 - no cover images unless asked (`--cover`)

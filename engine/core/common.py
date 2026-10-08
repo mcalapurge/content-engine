@@ -58,6 +58,84 @@ def h264(draft=False, rate=None):
             "-maxrate", f"{mbps * 1.2:g}M", "-bufsize", f"{mbps * 2:g}M", *colour]
 
 
+def hevc(rate, software=False):
+    """video encoder args for the size-capped tiktok shop upload (see encode_under): h.265 main, 8-bit
+    4:2:0, bt709, tagged hvc1 so tiktok and apple players read it. the media engine on a mac; libx265 when
+    software=True or off a mac. add -r and the audio/mp4 flags yourself."""
+    colour = ["-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"]
+    if HW and not software:
+        return ["-c:v", "hevc_videotoolbox", "-profile:v", "main", "-b:v", rate, "-prio_speed", "0",
+                "-tag:v", "hvc1", *colour]
+    return ["-c:v", "libx265", "-preset", "medium", "-b:v", rate, "-tag:v", "hvc1", *colour]
+
+
+# ---------- size-capped upload (tiktok shop, --max-mb) ----------
+SMALL_AUDIO_BPS = 128_000  # aac for the capped file: plenty for a voice + music
+SIZE_AIM = 0.95            # aim this far under the cap: the mp4 wrapper and encoder overshoot need room
+SMALL_MIN_BPS = 150_000    # below this the picture falls apart: too long to fit, say so instead
+HW_TRIES, SOFT_TRIES = 3, 3
+
+
+def small_rate(limit_bytes, secs, aim=SIZE_AIM):
+    """video bits a second that fill `aim` of the cap once the sound is in. never above the normal finals' rate."""
+    rate = limit_bytes * 8 * aim / max(secs, 0.1) - SMALL_AUDIO_BPS
+    return int(min(rate, float(FINAL_BITRATE.rstrip("Mm")) * 1_000_000))
+
+
+def encode_under(master, out, max_mb, fps, cwd):
+    """re-encode a finished video as h.265 that is guaranteed to be at most max_mb (1 MB = 1,000,000 bytes,
+    the strictest reading). media engine first (fast); every try that lands over the cap is redone at a
+    proportionally lower rate, and if the media engine can't get under, two-pass x265 takes over (it hits a
+    size much more exactly). a file over the cap is never left behind. returns (size in bytes, tries)."""
+    limit = int(max_mb * 1_000_000)
+    secs = float(probe(master)["format"]["duration"])
+    full_rate = small_rate(limit, secs)
+    if full_rate < SMALL_MIN_BPS:
+        die(f"{secs:.0f}s won't fit in {max_mb:g}MB and still look ok. cut it shorter or raise --max-mb")
+    head = [find_bin("ffmpeg"), "-y", *vin(master), "-map", "0:v:0"]
+    audio = ["-map", "0:a:0?", "-c:a", "aac", "-b:a", str(SMALL_AUDIO_BPS), "-ar", "48000"]
+    attempts = ([False] * HW_TRIES if HW else []) + [True] * SOFT_TRIES
+    rate = full_rate
+    try:
+        for tries, software in enumerate(attempts, 1):
+            if software and (tries == 1 or not attempts[tries - 2]):
+                rate = full_rate            # x265 hits its target closely: start again from the full budget
+            if rate < SMALL_MIN_BPS:
+                break
+            video = hevc(str(rate), software)
+            if software:    # two passes: the first only measures, so the second spends the bits where they count
+                run(head + [*video, "-x265-params", "pass=1:stats=x265_stats.log:log-level=error",
+                            "-r", str(fps), "-an", "-f", "null", "-"], cwd=cwd)
+                video += ["-x265-params", "pass=2:stats=x265_stats.log:log-level=error"]
+            run(head + [*video, "-r", str(fps), *audio, "-movflags", "+faststart", str(out)], cwd=cwd)
+            size = Path(out).stat().st_size
+            if size <= limit:
+                return size, tries
+            print(f"[engine] {size / 1e6:.3f}MB is over {max_mb:g}MB, encoding again a bit lower", file=sys.stderr)
+            rate = int(rate * limit * SIZE_AIM / size)
+    finally:
+        for leftover in Path(cwd).glob("x265_stats.log*"):
+            leftover.unlink()
+    if Path(out).exists():
+        Path(out).unlink()
+    die(f"couldn't get this under {max_mb:g}MB without it falling apart. cut it shorter or raise --max-mb")
+
+
+# ---------- jobs at once ----------
+JOBS = 3                   # ffmpeg runs at a time for sets: more just fight over the performance cores
+
+
+def in_parallel(fn, items, jobs=JOBS):
+    """fn(item) for every item, `jobs` at a time (each one runs its own ffmpeg). results in item order.
+    a failure (die) stops the lot once the running jobs finish."""
+    items = list(items)
+    if jobs <= 1 or len(items) <= 1:
+        return [fn(item) for item in items]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(jobs, len(items))) as pool:
+        return list(pool.map(fn, items))
+
+
 def _strip_hwaccel(cmd):
     out, skip = [], False
     for c in cmd:

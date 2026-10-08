@@ -133,6 +133,8 @@ What render does automatically (don't redo by hand):
 - b-roll starts/ends exactly on nearby cuts (no 1-frame flash); consecutive b-roll merges seamlessly
 - grade (from the brand's grade.json) on talking-head only (b-roll ungraded unless `"grade": true`)
 - captions follow the brand's style.json: case, `keep_caps`, keyword colour, caption mode; a line never wraps (max ~22 chars) and phrases in `keep_caps` are never split
+- a reel of 30s or more renders as 2-3 chunks at the same time, joined without re-encoding (same frames as one go; `--one-pass` if ever needed)
+- tiktok shop parts with `"max_mb"` in plan.json (or `--max-mb`) come out as h.265 under that size instead of the normal file (see the size cap in the video-pipeline skill)
 
 Before rendering, `render.py` stops if any boxed text (hook box, step badge, takeover) is under 4.5:1 contrast. `qc.py` reports it as "text contrast".
 

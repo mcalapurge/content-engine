@@ -4,12 +4,14 @@ usage (preview): python -m engine grade [video] --brand <name> [--at 3.0]
 saves output/<brand>/grade/<date>_<time>_<clip>/<clip>_grade_compare.jpg - before on the left, after on the right.
 """
 import argparse
+import functools
 import hashlib
 import struct
 from pathlib import Path
 
 from engine.core.brand import add_brand_arg, get_brand
-from engine.core.common import vin, WORK_DIR, output_folder, find_bin, load_json, resolve_video, run, sdr_filter, video_info
+from engine.core.common import (vin, WORK_DIR, output_folder, find_bin, load_json, resolve_video, run, save_json,
+                                sdr_filter, video_info)
 
 HSL_NAMES = {"red": "r", "yellow": "y", "green": "g", "cyan": "c", "blue": "b",
              "magenta": "m", "purple": "m"}
@@ -109,11 +111,21 @@ def colour_chain(g, hsl_supported=True):
     return ",".join(f)
 
 
+@functools.lru_cache(maxsize=None)
 def has_huesaturation():
+    """whether this ffmpeg has the hsl filter. remembered per ffmpeg build (work/_grade/filters.json),
+    so renders don't start another ffmpeg just to ask."""
     import subprocess
-    out = subprocess.run([find_bin("ffmpeg"), "-hide_banner", "-filters"],
-                         capture_output=True, text=True).stdout
-    return " huesaturation " in out
+    ffmpeg = Path(find_bin("ffmpeg")).resolve()
+    stamp = f"{ffmpeg}-{int(ffmpeg.stat().st_mtime)}"
+    cache = WORK_DIR / "_grade" / "filters.json"
+    if cache.exists() and load_json(cache).get("stamp") == stamp:
+        return load_json(cache)["huesaturation"]
+    out = subprocess.run([str(ffmpeg), "-hide_banner", "-filters"], capture_output=True, text=True).stdout
+    found = " huesaturation " in out
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    save_json(cache, {"stamp": stamp, "huesaturation": found})
+    return found
 
 
 def main():

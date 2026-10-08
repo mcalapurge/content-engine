@@ -29,7 +29,7 @@ The brand always comes first, then the optional bits.
 | command | what it makes | example |
 |---|---|---|
 | `/content-talking-head <brand> [folder] [notes]` | a talking-to-camera reel from the newest clip in `inputs/talking-head/` (or that subfolder) | `/content-talking-head mia` <br> `/content-talking-head beth october punch in on the price` |
-| `/content-tts <brand> [folder] [product] [how many]` | tiktok shop videos split from a batch take or compilation in `inputs/shop/` | `/content-tts beth halara-batch "Halara Wide Leg Trousers" 5` |
+| `/content-tts <brand> [folder] [product] [how many] [max size]` | tiktok shop videos split from a batch take or compilation in `inputs/shop/`. asks every time: the normal file, or a small h.265 one under 10MB (or the size you name) for uploading | `/content-tts beth halara-batch "Halara Wide Leg Trousers" 5` <br> `/content-tts beth halara-batch "Halara Wide Leg Trousers" 5 10mb` |
 | `/content-vlog <brand> [folder] [track] [no grade]` | a short b-roll / vlog edit from a folder in `inputs/vlog/` | `/content-vlog mia lisbon-trip assets/music/sunny.mp3` |
 | `/content-trial-reels <brand> [folder]` | instagram trial reels (text over b-roll) from a spreadsheet in `inputs/trial/` | `/content-trial-reels beth october` |
 | `/content-new-brand <name> [file]` | a new brand (guide, look, grade, effects) generated from a brand guide file in `inputs/brand-guides/` | `/content-new-brand mia mia-brand-book.pdf` |
@@ -147,12 +147,12 @@ RUN_TRANSCRIBE=1 python -m unittest tests.test_transcribe   # real whisper on a 
 | file | what it covers | needs |
 |---|---|---|
 | `tests/test_plan.py` | rough cut: lines, retakes, fillers, stats, hooks, the `plan` command | nothing |
-| `tests/test_render_logic.py` | timeline, zooms, captions, graphics, b-roll timing, sound cues, the mix | nothing |
-| `tests/test_core.py` | brands and style lookup, contrast, grade settings, work folder names, `inputs` | nothing |
+| `tests/test_render_logic.py` | timeline, zooms, captions, graphics, b-roll timing, sound cues, the mix, chunked renders, filter order | nothing |
+| `tests/test_core.py` | brands and style lookup, contrast, grade settings, work folder names, `inputs`, the h.265 size cap, parallel jobs, scan caches | nothing |
 | `tests/test_tools.py` | b-roll matching, text reels, vlog scoring, batch splitting, `brand`, the layout migration | nothing |
 | `tests/test_content.py` | brand files, style packs, b-roll library, and every command / flag the docs and skills mention | nothing |
 | `tests/test_smoke.py` | every command loads, folders exist | nothing |
-| `tests/test_media.py` | real renders on synthetic clips: colour table, hdr, beats, a full reel (recipes compared with `tests/golden/`), previews, capcut pack, qc, batch, vlog, text reels, b-roll index, takes | ffmpeg 7+ with every filter |
+| `tests/test_media.py` | real renders on synthetic clips: colour table, hdr, beats, a full reel (recipes compared with `tests/golden/`), chunks vs one go (frame by frame), the size-capped h.265 upload, previews, capcut pack, qc, batch, vlog, text reels, b-roll index, takes | ffmpeg 7+ with every filter |
 | `tests/test_transcribe.py` | whisper's tiny model on a synthetic voice | `RUN_TRANSCRIBE=1`, faster-whisper, espeak-ng or `say` |
 
 Tests run in a sandbox, `work/_tests/`, which is removed afterwards: they never touch real footage,

@@ -11,7 +11,7 @@ import sys
 from engine.core.contrast import MIN_RATIO, boxed_pairs, ratio
 
 from engine.core.brand import get_brand, load_style
-from engine.core.common import FILLERS, find_bin, load_json, norm, resolve_video, run, video_info, work_dir_for
+from engine.core.common import FILLERS, find_bin, load_json, norm, probe, resolve_video, run, video_info, work_dir_for
 
 results = []
 
@@ -41,6 +41,16 @@ def main():
         check("format", "PASS", "1080x1920, 9:16")
     else:
         check("format", "FAIL", f"came out {info['width']}x{info['height']}, expected 1080x1920")
+
+    # 1b. size-capped upload (tiktok shop --max-mb): h.265, and never over the cap
+    if edl.get("max_mb"):
+        from pathlib import Path
+        size = Path(out).stat().st_size
+        codec = next((s.get("codec_name") for s in probe(out)["streams"] if s["codec_type"] == "video"), "?")
+        over = size > edl["max_mb"] * 1_000_000
+        check("file size", "FAIL" if over else "PASS",
+              f"{size / 1e6:.2f}MB, {'over' if over else 'under'} the {edl['max_mb']:g}MB cap")
+        check("codec", "PASS" if codec == "hevc" else "FAIL", f"{codec} (h.265 expected for the capped upload)")
 
     # 2. audio present
     check("audio", "PASS" if info["has_audio"] else "FAIL",

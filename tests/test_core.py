@@ -206,5 +206,131 @@ class InputsCommand(unittest.TestCase):
             self.assertEqual(Path(out[2]).name, "new.mov")
 
 
+class SizeCap(unittest.TestCase):
+    """the tiktok shop upload (--max-mb): h.265, never over the cap. the encoder is faked here: each try
+    writes a file of the size the test says it came out at."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.master, self.out = self.tmp / "master.mp4", self.tmp / "reel_10mb.mp4"
+        self.master.write_bytes(b"")
+        self.calls = []
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def encode(self, sizes, hardware):
+        sizes = list(sizes)
+
+        def fake_run(cmd, cwd=None, quiet=True):
+            self.calls.append(cmd)
+            if cmd[-1] == str(self.out):
+                with open(self.out, "wb") as f:      # sparse: the size without writing megabytes
+                    f.truncate(sizes.pop(0))
+            elif "pass=1" in " ".join(cmd):
+                (self.tmp / "x265_stats.log").write_text("stats")
+        with mock.patch.object(common, "run", fake_run), mock.patch.object(common, "HW", hardware), \
+                mock.patch.object(common, "probe", lambda path: {"format": {"duration": "40.0"}}), \
+                mock.patch.object(common, "find_bin", lambda name: name):
+            return common.encode_under(self.master, self.out, 10, 30, self.tmp)
+
+    def rates(self):
+        return [int(cmd[cmd.index("-b:v") + 1]) for cmd in self.calls if cmd[-1] == str(self.out)]
+
+    def encoders(self):
+        return [cmd[cmd.index("-c:v") + 1] for cmd in self.calls if cmd[-1] == str(self.out)]
+
+    def test_rate_fills_the_cap_after_the_sound(self):
+        rate = common.small_rate(10_000_000, 60)
+        self.assertAlmostEqual(rate, 10_000_000 * 8 * common.SIZE_AIM / 60 - common.SMALL_AUDIO_BPS, delta=1)
+        self.assertEqual(common.small_rate(10_000_000, 2), 10_000_000)       # short: never above the normal rate
+
+    def test_hardware_first_and_every_try_over_the_cap_goes_again_lower(self):
+        size, tries = self.encode([12_000_000, 10_000_001, 9_800_000], hardware=True)
+        self.assertEqual((size, tries), (9_800_000, 3))
+        self.assertEqual(self.encoders(), ["hevc_videotoolbox"] * 3)
+        rates = self.rates()
+        self.assertEqual(rates, sorted(rates, reverse=True))
+        self.assertLess(rates[1], rates[0] * 10 / 12)                       # scaled down by how far over it was
+        cmd = self.calls[-1]
+        for flag, value in (("-tag:v", "hvc1"), ("-pix_fmt", "yuv420p"), ("-c:a", "aac"), ("-r", "30")):
+            self.assertEqual(cmd[cmd.index(flag) + 1], value)
+        self.assertIn("+faststart", cmd)
+
+    def test_two_pass_x265_takes_over_from_the_full_budget(self):
+        size, tries = self.encode([11_000_000] * 3 + [9_000_000], hardware=True)
+        self.assertEqual(tries, 4)
+        self.assertEqual(self.encoders(), ["hevc_videotoolbox"] * 3 + ["libx265"])
+        self.assertEqual(self.rates()[3], self.rates()[0])                   # x265 lands close: back to the full rate
+        self.assertTrue(any("pass=1" in " ".join(c) for c in self.calls))
+        self.assertFalse(list(self.tmp.glob("x265_stats.log*")))             # no leftovers
+
+    def test_off_a_mac_it_is_x265_from_the_start(self):
+        self.encode([9_000_000], hardware=False)
+        self.assertEqual(self.encoders(), ["libx265"])
+
+    def test_a_file_over_the_cap_is_never_left_behind(self):
+        with self.assertRaises(SystemExit):
+            self.encode([20_000_000] * 6, hardware=True)
+        self.assertFalse(self.out.exists())
+
+    def test_too_long_for_the_cap_says_so_without_encoding(self):
+        with mock.patch.object(common, "probe", lambda path: {"format": {"duration": "4000"}}), \
+                self.assertRaises(SystemExit):
+            common.encode_under(self.master, self.out, 1, 30, self.tmp)
+        self.assertFalse(self.out.exists())
+
+
+class Jobs(unittest.TestCase):
+    def test_results_come_back_in_order(self):
+        def slow_square(n):
+            time.sleep(0.02 * (5 - n))
+            return n * n
+        self.assertEqual(common.in_parallel(slow_square, range(5)), [0, 1, 4, 9, 16])
+        self.assertEqual(common.in_parallel(slow_square, [3], jobs=3), [9])
+
+    def test_a_failure_stops_the_lot(self):
+        def job(n):
+            if n == 2:
+                common.die("job 2 broke")
+            return n
+        with self.assertRaises(SystemExit):
+            common.in_parallel(job, range(5))
+
+
+class Scans(unittest.TestCase):
+    def test_measured_once_per_file_until_it_changes(self):
+        from engine.core import scan
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(common, "WORK_DIR", Path(tmp)):
+            clip = Path(tmp) / "clip.mov"
+            clip.write_bytes(b"one")
+            measured = []
+            fake = mock.patch.object(scan, "detect_silences", lambda v: measured.append(v) or [[0.0, 1.0], [5.0, None]])
+            with fake:
+                self.assertEqual(scan.silence_map(clip), [(0.0, 1.0), (5.0, float("inf"))])
+                scan.silence_map(clip)
+                self.assertEqual(len(measured), 1)
+                clip.write_bytes(b"changed")
+                scan.silence_map(clip)
+                self.assertEqual(len(measured), 2)
+            # caches written before this change ({"stamp", "cuts"}) still count
+            stat = clip.stat()
+            old = Path(tmp) / "_scenes" / f"{stat.st_ino}.json"
+            old.parent.mkdir(parents=True, exist_ok=True)
+            old.write_text(json.dumps({"stamp": f"{stat.st_size}-{int(stat.st_mtime)}", "cuts": [2.5]}))
+            self.assertEqual(scan.scene_cuts(clip), [2.5])
+
+    def test_ffmpeg_filter_check_is_remembered(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(grade, "WORK_DIR", Path(tmp)):
+            grade.has_huesaturation.cache_clear()
+            fake = mock.MagicMock(return_value=mock.Mock(stdout=" ... huesaturation  V->V ..."))
+            with mock.patch("subprocess.run", fake):
+                self.assertTrue(grade.has_huesaturation())
+                grade.has_huesaturation.cache_clear()
+                self.assertTrue(grade.has_huesaturation())            # from work/_grade/filters.json
+            self.assertEqual(fake.call_count, 1)
+            grade.has_huesaturation.cache_clear()
+
+
 if __name__ == "__main__":
     unittest.main()

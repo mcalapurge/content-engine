@@ -8,6 +8,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 
 from engine.commands import batch, broll, textreel, vlog
@@ -92,6 +93,31 @@ class Vlog(unittest.TestCase):
     def test_source_span_accounts_for_speed_ramps_and_freezes(self):
         self.assertAlmostEqual(vlog.source_span({"dur": 2, "speed": 1.5, "ramp": False, "freeze": 0.5}), 2.25)
         self.assertAlmostEqual(vlog.source_span({"dur": 2, "speed": 1, "ramp": True}), 2 * 0.4 * 2.5 + 2 * 0.6 * 0.5)
+
+
+    def test_still_shots_crop_the_window_a_cover_fit_would_show(self):
+        self.assertEqual(vlog.still_window(1080, 1920, 1.0), (1080, 1920, 0, 0))   # already 9:16: the whole frame
+        self.assertEqual(vlog.still_window(720, 1280, 1.0), (720, 1280, 0, 0))
+        w, h, x, y = vlog.still_window(1920, 1080, 1.0)                             # landscape: the centre strip
+        self.assertEqual((h, y), (1080, 0))
+        self.assertAlmostEqual(w, 1080 * 1080 / 1920, delta=1)
+        self.assertLessEqual(abs(x + w / 2 - 960), 2)
+        w, h, x, y = vlog.still_window(1080, 1920, 1.15)                            # tighter: a centred window
+        self.assertAlmostEqual(w / 1080, 1 / 1.15, delta=0.003)
+        self.assertLessEqual(abs(x + w / 2 - 540), 2)
+        self.assertEqual((x % 2, y % 2), (0, 0))                                     # on the colour samples
+
+    def test_render_chain_picks_frames_before_any_picture_work(self):
+        piece = {"clip": "inputs/vlog/x.mp4", "push": False, "zoom": 1.15, "ramp": False, "speed": 1.0,
+                 "transition": "cut"}
+        with mock.patch.object(vlog, "sdr_filter", lambda path: "zscale=hdr,"):
+            chain = vlog.video_chain(0, piece, 60, "", (1080, 1920))
+            ramp = vlog.video_chain(0, {**piece, "ramp": True}, 60, "", (1080, 1920))
+        positions = [chain.index(part) for part in ("fps=30", "crop=", "zscale=hdr", "scale=1080:1920")]
+        self.assertEqual(positions, sorted(positions), chain)
+        for branch in ramp.split(";")[1:3]:                                          # each speed of a ramp
+            self.assertLess(branch.index("setpts"), branch.index("fps=30"))
+            self.assertLess(branch.index("fps=30"), branch.index("zscale=hdr"))
 
 
 class BatchSplit(unittest.TestCase):

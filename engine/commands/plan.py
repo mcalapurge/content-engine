@@ -1,6 +1,6 @@
 """step 2: turn a transcript into an edit plan + beat table for approval.
 
-usage: python -m engine plan [video] --brand <name> [--style <style>]
+usage: python -m engine plan [video] --brand <name> [--style <style>] [--no-text] [--max-mb 10]
 
 writes work/<clip>/plan.json (claude edits this when you ask for changes)
 and work/<clip>/plan.md (the beat table you approve).
@@ -89,6 +89,8 @@ def beat_table(plan, video_name, raw_duration):
             "run python -m engine takes to choose by expression" if groups else "no repeated takes found"),
            f"sound: {'sound effects on' if snd.get('sfx', True) else 'no sound effects'}, "
            f"{'music: ' + str(music).replace(chr(92), '/').split('/')[-1] if music else 'no music yet'}",
+           (f"file: h.265, max {plan['max_mb']:g}MB (for upload)" if plan.get("max_mb")
+            else "file: normal h.264"),
            "", "| # | keep? | secs | what you say | what's on screen |", "|---|---|---|---|---|"]
     for l in lines:
         if not l["keep"]:
@@ -130,6 +132,9 @@ def main():
     ap.add_argument("--style", default=None, help="default: the brand's own style")
     ap.add_argument("--no-text", action="store_true",
                     help="captions only: no hook card, stat pops or step badges (eg tiktok shop)")
+    ap.add_argument("--max-mb", type=float, default=None,
+                    help="tiktok shop upload: render this as h.265 of at most this many MB (eg 10). "
+                         "saved in plan.json, so every render of it keeps it")
     ap.add_argument("--table-only", action="store_true",
                     help="just reprint the beat table from the existing plan.json")
     args = ap.parse_args()
@@ -217,7 +222,7 @@ def main():
             l["motion"] = "slow"   # land the ending
 
     hook = short_hook(first_sentence(kept)) if kept and not args.no_text else ""
-    plan = {"brand": brand.name, "style": style, "hook_text": hook,
+    plan = {"brand": brand.name, "style": style, "hook_text": hook, "max_mb": args.max_mb or None,
             "sound": {"sfx": True, "sfx_volume": 0.5, "music": None, "music_volume": 0.12},
             "lines": lines}
     save_json(wd / "plan.json", plan)

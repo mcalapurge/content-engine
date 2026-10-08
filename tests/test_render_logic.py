@@ -286,6 +286,79 @@ class Sound(unittest.TestCase):
         self.assertIsNone(render.find_sfx("not-a-sound"))
 
 
+class Speed(unittest.TestCase):
+    """the render audit's changes: same pictures, less work."""
+
+    @mock.patch.object(render, "sdr_filter", lambda path: "zscale=hdr,")
+    def test_frames_are_picked_and_counted_before_any_picture_work(self):
+        still = {"start": 0, "end": 1, "z0": 1.1, "z1": 1.1}
+        push = {"start": 0, "end": 1, "z0": 1.0, "z1": 1.07}
+        for seg, order in ((still, ["fps=30", "trim=end_frame=30", "crop=", "zscale=hdr", "scale=1080:1920"]),
+                           (push, ["fps=30", "trim=end_frame=30", "zscale=hdr", "scale=2160", "zoompan"])):
+            chain = render.segment_chain(4, seg, 30, "clip.mov", 1080, 1920)
+            self.assertTrue(chain.startswith("[4:v]setpts=PTS-STARTPTS,fps=30,"))
+            positions = [chain.index(part) for part in order]
+            self.assertEqual(positions, sorted(positions), chain)     # still shots crop before the hdr conversion
+            self.assertEqual(chain.count("fps=30,"), 1)
+        broll = render.broll_filter(2, 1.0, 2.0, {"path": Path("b.mov")})
+        positions = [broll.index(part) for part in ("fps=30", "trim=end_frame=34", "zscale=hdr", "zoompan")]
+        self.assertEqual(positions, sorted(positions), broll)
+
+    def test_captions_draw_above_every_graphic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reel.ass"
+            render.write_ass(path, beth_style(), [(0, 1, name, "x") for name in
+                                                  ("Caption", "Hook", "Stat", "Badge", "TakeBox", "TakeText")])
+            layers = {line.split(",")[3]: int(line.split(",")[0].split()[-1])
+                      for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("Dialogue")}
+        self.assertGreater(layers["Caption"], max(v for k, v in layers.items() if k != "Caption"))
+
+    def test_b_roll_edges_land_on_the_nearest_frame(self):
+        # a window snapped onto cuts (whole frames) covers exactly the frames from the first cut to the second,
+        # whatever tiny drift the frame times have
+        expr = render.on_frames(233 / 30, 286 / 30)
+        low, high = (float(x) for x in re.search(r"between\(t,([\d.]+),([\d.]+)\)", expr).groups())
+        shown = [k for k in range(220, 300) for drift in (-0.0004, 0, 0.0004) if low <= k / 30 + drift <= high]
+        self.assertEqual(sorted(set(shown)), list(range(233, 286)))
+        self.assertEqual(len(shown), 3 * (286 - 233))
+
+    def edit(self, cuts, windows=(), total=None, slow=()):
+        starts = [0.0] + list(cuts)
+        ends = list(cuts) + [total or cuts[-1] + 10]
+        segments = [{"new_start": a, "new_end": b, "frames": round((b - a) * 30), "z0": 1.0,
+                     "z1": 1.07 if n in slow else 1.0} for n, (a, b) in enumerate(zip(starts, ends))]
+        return render.Edit(inputs=[], filters=[], segments=segments, timed={}, total=ends[-1], captions=[],
+                           graphics=[], windows=[(a, b, {}) for a, b in windows], cues=[], missing_sfx=[],
+                           sound_labels=[], music=None, video="clip.mov", size=(1080, 1920))
+
+    def test_long_reels_split_into_chunks_at_cuts_never_inside_b_roll(self):
+        edit = self.edit([5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], windows=[(18, 22), (38, 41)], total=60)
+        chunks = render.chunk_plan(edit)
+        self.assertEqual(len(chunks), 3)
+        self.assertEqual(chunks[0][0], 0)
+        self.assertEqual(chunks[-1][1], len(edit.segments))
+        for (_, after), (first, _) in zip(chunks, chunks[1:]):
+            self.assertEqual(after, first)                           # every segment in exactly one chunk
+            join = edit.segments[first]["new_start"]
+            self.assertFalse(any(a < join < b for a, b, _ in edit.windows), join)
+            self.assertNotIn(join, (20, 40))
+        self.assertEqual(render.chunk_plan(self.edit([4, 8], total=12)), [(0, 3)])     # short: one go
+        # no cut far enough from the ends: one go
+        self.assertEqual(render.chunk_plan(self.edit([2, 58], total=60)), [(0, 3)])
+
+    @mock.patch.object(render, "sdr_filter", lambda path: "")
+    def test_chunks_grade_in_the_format_a_one_pass_render_picks(self):
+        def fmt(pix_fmt, slow=()):
+            with mock.patch.object(render, "probe", lambda path: {"streams": [{"codec_type": "video",
+                                                                                 "pix_fmt": pix_fmt}]}):
+                return render.grade_format(self.edit([5, 10], slow=slow))
+        self.assertEqual(fmt("yuv420p10le", slow=(1,)), "gbrp")     # a slow zoom anywhere: 8-bit planar
+        self.assertEqual(fmt("yuv420p"), "rgb24")
+        self.assertEqual(fmt("yuv420p10le"), "gbrp10le")
+        with mock.patch.object(render, "sdr_filter", lambda path: "zscale,"):
+            self.assertEqual(fmt("yuv420p10le"), "rgb24")           # phone hdr is 8-bit after conversion
+
+
 class Paths(unittest.TestCase):
     def test_fonts_dir_is_relative_to_where_ffmpeg_runs(self):
         self.assertEqual(render.fonts_dir_from(ROOT / "work" / "clip"), "../../assets/fonts")

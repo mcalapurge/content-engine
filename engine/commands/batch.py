@@ -6,12 +6,15 @@ usage:
 
 split transcribes the whole file (if needed), then splits at the big pauses between videos.
 --count forces exactly that many videos (uses the biggest pauses). cut saves each video to
-work/<video>/parts/ - the original is never touched - ready for the normal edit steps.
+work/<video>/parts/ - the original is never touched - ready for the normal edit steps. the picture is
+copied, not re-encoded, so a part can start a moment early (on the keyframe in the pause before it).
 """
 import argparse
+import math
 import sys
 
-from engine.core.common import vin, die, find_bin, load_json, probe, resolve_video, run, save_json, work_dir_for
+from engine.core.common import (vin, die, find_bin, in_parallel, load_json, probe, resolve_video, run, save_json,
+                                work_dir_for)
 from engine.commands.transcribe import transcribe_file
 
 
@@ -55,12 +58,29 @@ def cmd_split(video, wd, args):
               f"{s['hook'].replace('|', '/')}... |")
 
 
+def keyframe_before(video, t):
+    """time (from the file's start, as -ss counts) of the last keyframe at or before t."""
+    start = float(probe(video)["format"].get("start_time", 0) or 0)
+    res = run([find_bin("ffprobe"), "-v", "error", "-select_streams", "v:0",
+               "-read_intervals", f"{max(0.0, start + t - 20):.3f}%{start + t + 0.1:.3f}",
+               "-show_entries", "packet=pts_time,flags",
+               "-of", "csv=p=0", str(video)])
+    keys = []
+    for line in res.stdout.splitlines():
+        pts, _, flags = line.partition(",")
+        if "K" in flags and pts not in ("", "N/A"):
+            keys.append(float(pts) - start)
+    return max((k for k in keys if k <= t + 0.001), default=0.0)
+
+
 def cmd_cut(video, wd, args):
     bp = wd / "batch.json"
     if not bp.exists():
         die("run 'python -m engine batch split' first")
     sections = load_json(bp)["sections"]
+    words = load_json(wd / "transcript.json")["words"] if (wd / "transcript.json").exists() else []
     v = next(s for s in probe(video)["streams"] if s["codec_type"] == "video")
+    # re-encode settings, only for a part whose keyframe would reach back into the video before it.
     # keep the colour info (hdr stays hdr) so the edit treats each part like the original
     colour = []
     for opt, key in (("-color_primaries", "color_primaries"), ("-color_trc", "color_transfer"),
@@ -73,14 +93,32 @@ def cmd_cut(video, wd, args):
             codec += ["-profile:v", "main10"]
     else:
         codec = ["-c:v", "libx264", "-crf", "14", "-preset", "fast"]
+    copy = ["-c:v", "copy", *(["-tag:v", "hvc1"] if v.get("codec_name") == "hevc" else [])]
     parts = wd / "parts"
     parts.mkdir(exist_ok=True)
     stem = wd.name
-    for n, s in enumerate(sections, 1):
+
+    def cut(job):
+        n, s = job
         out = parts / f"{stem}_{n:02d}.mp4"
-        run([find_bin("ffmpeg"), "-y", *vin(video, "-ss", f"{s['start']:.3f}", "-to", f"{s['end']:.3f}"), "-map", "0:v:0", "-map", "0:a:0", *codec, *colour,
-             "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart", str(out)])
-        print(f"[engine] video {n}: {out.relative_to(wd.parent.parent)}")
+        # copy the picture as it is (no re-encode: instant, and the edit works from the camera's own
+        # frames). a copy has to start on a keyframe, so a part can begin a moment early, inside the
+        # pause before its hook. if that keyframe is back in the previous video's speech, re-encode instead
+        said_before = max((w["end"] for w in words if w["end"] <= s["start"]), default=0.0)
+        key = keyframe_before(video, s["start"]) if s["start"] > 0 else 0.0
+        exact = key < said_before - 0.05
+        # a copy keeps everything from the keyframe at or before the cut, and the sound starts at the cut
+        # itself: cut a hair (under 1ms) after the keyframe, so picture and sound start together
+        start = s["start"] if exact else math.floor(key * 1000) / 1000 + 0.001 if key > 0 else 0.0
+        run([find_bin("ffmpeg"), "-y", *vin(video, "-ss", f"{start:.3f}", "-to", f"{s['end']:.3f}"),
+             "-map", "0:v:0", "-map", "0:a:0", *(codec + colour if exact else copy),
+             "-c:a", "aac", "-b:a", "256k", "-avoid_negative_ts", "make_zero", str(out)])
+        return out, start, exact
+
+    for n, (out, start, exact) in enumerate(in_parallel(cut, list(enumerate(sections, 1))), 1):
+        how = "re-encoded (no keyframe in the pause before it)" if exact else \
+            f"copied from {mmss(start)}" if start < sections[n - 1]["start"] - 0.01 else "copied"
+        print(f"[engine] video {n}: {out.relative_to(wd.parent.parent)}  {how}")
 
 
 def mmss(t):

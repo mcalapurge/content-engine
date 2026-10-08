@@ -17,28 +17,28 @@ Style: TakeText,Helvetica Neue,120,&H001E1E1E,&H001E1E1E,&H00F0EAFA,&H00F0EAFA,-
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
-Dialogue: 0,0:00:00.06,0:00:00.33,Caption,,0,0,0,,{\r\fsp-2}you {\r\fsp-2\alpha&HFF&}need {\r\fsp-2\alpha&HFF&}to {\r\fsp-2\alpha&HFF&}charge
-Dialogue: 0,0:00:00.33,0:00:00.60,Caption,,0,0,0,,{\r\fsp-2}you {\r\fsp-2}need {\r\fsp-2\alpha&HFF&}to {\r\fsp-2\alpha&HFF&}charge
-Dialogue: 0,0:00:00.60,0:00:00.87,Caption,,0,0,0,,{\r\fsp-2}you {\r\fsp-2}need {\r\fsp-2}to {\r\fsp-2\alpha&HFF&}charge
-Dialogue: 0,0:00:00.87,0:00:01.14,Caption,,0,0,0,,{\r\fsp-2}you {\r\fsp-2}need {\r\fsp-2}to {\r\fsp-2}charge
-Dialogue: 0,0:00:01.14,0:00:01.41,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}700 {\r\fsp-2\alpha&HFF&}pounds
-Dialogue: 0,0:00:01.41,0:00:01.83,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}700 {\r\fsp-2}pounds
-Dialogue: 0,0:00:01.83,0:00:02.10,Caption,,0,0,0,,{\r\fsp-2}step {\r\fsp-2\alpha&HFF&}one {\r\fsp-2\alpha&HFF&}know
-Dialogue: 0,0:00:02.10,0:00:02.37,Caption,,0,0,0,,{\r\fsp-2}step {\r\fsp-2}one {\r\fsp-2\alpha&HFF&}know
-Dialogue: 0,0:00:02.37,0:00:02.64,Caption,,0,0,0,,{\r\fsp-2}step {\r\fsp-2}one {\r\fsp-2}know
-Dialogue: 0,0:00:02.64,0:00:02.91,Caption,,0,0,0,,{\r\fsp-2}your {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0\alpha&HFF&}rates
-Dialogue: 0,0:00:02.91,0:00:03.33,Caption,,0,0,0,,{\r\fsp-2}your {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}rates
-Dialogue: 0,0:00:03.33,0:00:03.60,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}70% {\r\fsp-2\alpha&HFF&}of {\r\fsp-2\alpha&HFF&}creators
-Dialogue: 0,0:00:03.60,0:00:03.87,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}70% {\r\fsp-2}of {\r\fsp-2\alpha&HFF&}creators
-Dialogue: 0,0:00:03.87,0:00:04.14,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}70% {\r\fsp-2}of {\r\fsp-2}creators
-Dialogue: 0,0:00:04.14,0:00:04.41,Caption,,0,0,0,,{\r\fsp-2}forget {\r\fsp-2\alpha&HFF&}this
-Dialogue: 0,0:00:04.41,0:00:04.83,Caption,,0,0,0,,{\r\fsp-2}forget {\r\fsp-2}this
-Dialogue: 0,0:00:06.06,0:00:06.33,Caption,,0,0,0,,{\r\fsp-2}then {\r\fsp-2\alpha&HFF&}send {\r\fsp-2\alpha&HFF&}the {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0\alpha&HFF&}invoice
-Dialogue: 0,0:00:06.33,0:00:06.60,Caption,,0,0,0,,{\r\fsp-2}then {\r\fsp-2}send {\r\fsp-2\alpha&HFF&}the {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0\alpha&HFF&}invoice
-Dialogue: 0,0:00:06.60,0:00:06.87,Caption,,0,0,0,,{\r\fsp-2}then {\r\fsp-2}send {\r\fsp-2}the {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0\alpha&HFF&}invoice
-Dialogue: 0,0:00:06.87,0:00:07.29,Caption,,0,0,0,,{\r\fsp-2}then {\r\fsp-2}send {\r\fsp-2}the {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}invoice
-Dialogue: 0,0:00:07.29,0:00:07.56,Caption,,0,0,0,,{\r\fsp-2}and {\r\fsp-2\alpha&HFF&}follow {\r\fsp-2\alpha&HFF&}up
-Dialogue: 0,0:00:07.56,0:00:07.83,Caption,,0,0,0,,{\r\fsp-2}and {\r\fsp-2}follow {\r\fsp-2\alpha&HFF&}up
-Dialogue: 0,0:00:07.83,0:00:08.10,Caption,,0,0,0,,{\r\fsp-2}and {\r\fsp-2}follow {\r\fsp-2}up
-Dialogue: 0,0:00:08.10,0:00:08.37,Caption,,0,0,0,,{\r\fsp-2}every {\r\fsp-2\alpha&HFF&}time
-Dialogue: 0,0:00:08.37,0:00:08.84,Caption,,0,0,0,,{\r\fsp-2}every {\r\fsp-2}time
+Dialogue: 10,0:00:00.06,0:00:00.33,Caption,,0,0,0,,{\r\fsp-2}you {\r\fsp-2\alpha&HFF&}need {\r\fsp-2\alpha&HFF&}to {\r\fsp-2\alpha&HFF&}charge
+Dialogue: 10,0:00:00.33,0:00:00.60,Caption,,0,0,0,,{\r\fsp-2}you {\r\fsp-2}need {\r\fsp-2\alpha&HFF&}to {\r\fsp-2\alpha&HFF&}charge
+Dialogue: 10,0:00:00.60,0:00:00.87,Caption,,0,0,0,,{\r\fsp-2}you {\r\fsp-2}need {\r\fsp-2}to {\r\fsp-2\alpha&HFF&}charge
+Dialogue: 10,0:00:00.87,0:00:01.14,Caption,,0,0,0,,{\r\fsp-2}you {\r\fsp-2}need {\r\fsp-2}to {\r\fsp-2}charge
+Dialogue: 10,0:00:01.14,0:00:01.41,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}700 {\r\fsp-2\alpha&HFF&}pounds
+Dialogue: 10,0:00:01.41,0:00:01.83,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}700 {\r\fsp-2}pounds
+Dialogue: 10,0:00:01.83,0:00:02.10,Caption,,0,0,0,,{\r\fsp-2}step {\r\fsp-2\alpha&HFF&}one {\r\fsp-2\alpha&HFF&}know
+Dialogue: 10,0:00:02.10,0:00:02.37,Caption,,0,0,0,,{\r\fsp-2}step {\r\fsp-2}one {\r\fsp-2\alpha&HFF&}know
+Dialogue: 10,0:00:02.37,0:00:02.64,Caption,,0,0,0,,{\r\fsp-2}step {\r\fsp-2}one {\r\fsp-2}know
+Dialogue: 10,0:00:02.64,0:00:02.91,Caption,,0,0,0,,{\r\fsp-2}your {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0\alpha&HFF&}rates
+Dialogue: 10,0:00:02.91,0:00:03.33,Caption,,0,0,0,,{\r\fsp-2}your {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}rates
+Dialogue: 10,0:00:03.33,0:00:03.60,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}70% {\r\fsp-2\alpha&HFF&}of {\r\fsp-2\alpha&HFF&}creators
+Dialogue: 10,0:00:03.60,0:00:03.87,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}70% {\r\fsp-2}of {\r\fsp-2\alpha&HFF&}creators
+Dialogue: 10,0:00:03.87,0:00:04.14,Caption,,0,0,0,,{\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}70% {\r\fsp-2}of {\r\fsp-2}creators
+Dialogue: 10,0:00:04.14,0:00:04.41,Caption,,0,0,0,,{\r\fsp-2}forget {\r\fsp-2\alpha&HFF&}this
+Dialogue: 10,0:00:04.41,0:00:04.83,Caption,,0,0,0,,{\r\fsp-2}forget {\r\fsp-2}this
+Dialogue: 10,0:00:06.06,0:00:06.33,Caption,,0,0,0,,{\r\fsp-2}then {\r\fsp-2\alpha&HFF&}send {\r\fsp-2\alpha&HFF&}the {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0\alpha&HFF&}invoice
+Dialogue: 10,0:00:06.33,0:00:06.60,Caption,,0,0,0,,{\r\fsp-2}then {\r\fsp-2}send {\r\fsp-2\alpha&HFF&}the {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0\alpha&HFF&}invoice
+Dialogue: 10,0:00:06.60,0:00:06.87,Caption,,0,0,0,,{\r\fsp-2}then {\r\fsp-2}send {\r\fsp-2}the {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0\alpha&HFF&}invoice
+Dialogue: 10,0:00:06.87,0:00:07.29,Caption,,0,0,0,,{\r\fsp-2}then {\r\fsp-2}send {\r\fsp-2}the {\r\fsp-2\fnHelvetica Neue\c&H00F0EAFA\fs88\fsp-2\bord0}invoice
+Dialogue: 10,0:00:07.29,0:00:07.56,Caption,,0,0,0,,{\r\fsp-2}and {\r\fsp-2\alpha&HFF&}follow {\r\fsp-2\alpha&HFF&}up
+Dialogue: 10,0:00:07.56,0:00:07.83,Caption,,0,0,0,,{\r\fsp-2}and {\r\fsp-2}follow {\r\fsp-2\alpha&HFF&}up
+Dialogue: 10,0:00:07.83,0:00:08.10,Caption,,0,0,0,,{\r\fsp-2}and {\r\fsp-2}follow {\r\fsp-2}up
+Dialogue: 10,0:00:08.10,0:00:08.37,Caption,,0,0,0,,{\r\fsp-2}every {\r\fsp-2\alpha&HFF&}time
+Dialogue: 10,0:00:08.37,0:00:08.84,Caption,,0,0,0,,{\r\fsp-2}every {\r\fsp-2}time

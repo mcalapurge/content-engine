@@ -97,6 +97,14 @@ class PlanCommand(unittest.TestCase):
         self.assertEqual(p["hook_text"], "")
         self.assertEqual({l["treatment"] for l in p["lines"]}, {"none"})
 
+    def test_size_cap_for_uploads_is_saved_in_the_plan(self):
+        out = self.box.engine("plan", self.video, "--brand", "beth", "--no-text", "--max-mb", "10").stdout
+        self.assertEqual(self.load()["max_mb"], 10)
+        self.assertIn("file: h.265, max 10MB", out)
+        out = self.box.engine("plan", self.video, "--brand", "beth").stdout
+        self.assertIsNone(self.load()["max_mb"])
+        self.assertIn("file: normal h.264", out)
+
     def test_table_only_reprints_hand_edits(self):
         self.box.engine("plan", self.video, "--brand", "beth")
         p = self.load()

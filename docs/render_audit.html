@@ -68,6 +68,18 @@
   <p><b>Estimates are reasoned, not measured.</b> The only measured number is the skill's own baseline: a 1:33 reel renders in about 1m30s wall time using 279 s of processor time (about three cores busy on a machine with ten).</p>
 </div>
 
+<h2>Status: items 1 to 12 done</h2>
+<p class="note">Done 8 October 2026. Checked by rendering the same plans before and after with a lossless encoder and comparing every frame (synthetic 8 and 10-bit, SDR and HLG, 30 and 60 fps, portrait and landscape sources). Speed was not measured on a Mac.</p>
+<ul>
+  <li><b>Bit-identical, as predicted:</b> items 1 to 8 (one-pass talking head, text reels, review thumbnails, the 60 fps HDR vlog clip). Item 6 batches up to 24 thumbnails per ffmpeg run.</li>
+  <li><b>Item 9 (chunks) is bit-identical to a one-pass render</b>, picture and sound, once two things were fixed. First, frame timing was not exact: each piece's sound was trimmed to the millisecond, which nudged later frame times by fractions of a millisecond. Whether a b-roll shot snapped onto a cut started on that cut's first frame (or let one talking-head frame flash) depended on that drift. Sound is now exactly as long as its frames, the joined picture counts in whole frames, and b-roll covers the frames nearest its edges. Against the old code that moves a fade or caption step by one frame now and then (73 dB average, 53 dB worst frame) and the sound by under 0.5 ms per cut. Second, ffmpeg picks the grade's pixel format from the whole graph (see item 13 below), so each chunk is held to the format the whole reel would use. <code>tests/test_media.py</code> checks chunks against one pass frame by frame. Reels of 30 s or more split into 2 chunks, 45 s or more into 3.</li>
+  <li><b>Item 10:</b> parts are stream copies starting on the keyframe in the pause before each hook. Where that keyframe falls back inside the previous video's speech (long keyframe gaps), that part is re-encoded exactly as before, so a part never opens with the end of the previous video. Picture and sound line up as closely as the old re-encode did.</li>
+  <li><b>Item 11:</b> 72 to 77 dB average against the old code on HDR (worst frame 53 to 65 dB).</li>
+  <li><b>Item 12:</b> portrait clips at normal framing are bit-identical. Landscape clips and 1.15 tight framings now crop a window within about one source pixel of the old one (under 2 output pixels), the sub-pixel shift the report expected. On a fractal test pattern that reads as low PSNR (27 to 36 dB), because any shift does there.</li>
+  <li><b>Item 13 finding:</b> with a slow zoom anywhere in the reel, ffmpeg grades in 8-bit planar RGB, because the zoom filter can't do more. Only reels with still shots alone grade 10-bit footage at 10-bit. So the "higher precision on a 10-bit source" note below only holds for reels without slow zooms. Nothing was changed for this; it's a look question.</li>
+  <li>Also new: a size-capped h.265 upload for TikTok Shop (<code>--max-mb</code>), see the video-pipeline skill.</li>
+</ul>
+
 <h2>Summary</h2>
 <table>
   <thead><tr><th>#</th><th>Suggestion</th><th>Where</th><th>Class</th><th>Rough gain</th><th>Effort</th></tr></thead>

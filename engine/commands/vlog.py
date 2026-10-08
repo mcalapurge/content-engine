@@ -18,8 +18,8 @@ from pathlib import Path
 import numpy as np
 
 from engine.core.brand import add_brand_arg, get_brand
-from engine.core.common import (h264, vin, ROOT, SFX_DIR, VIDEO_EXTS, die, find_bin, input_subfolders, job_dir,
-                                load_json, output_folder, probe, run, save_json, sdr_filter)
+from engine.core.common import (h264, vin, ROOT, SFX_DIR, VIDEO_EXTS, die, find_bin, in_parallel, input_subfolders,
+                                job_dir, load_json, output_folder, probe, run, save_json, sdr_filter, video_info)
 from engine.core.grade import grade_filter, has_huesaturation, load_grade
 
 W, H, FPS = 1080, 1920, 30
@@ -102,24 +102,30 @@ def contact_sheet(clip, dur, out):
          "-q:v", "4", str(out)])
 
 
+def analyse_clip(clip, wd):
+    """measure one clip, find its best stretches and make its frame sheet."""
+    info = probe(clip)
+    v = next(s for s in info["streams"] if s["codec_type"] == "video")
+    dur = float(info["format"].get("duration", 0))
+    frames = measure(clip)
+    wins = best_windows(frames, dur, count=max(1, min(4, int(dur // 4))))
+    sheet = wd / "sheets" / f"{clip.stem}.jpg"
+    contact_sheet(clip, dur, sheet)
+    return {"file": str(clip.relative_to(ROOT)), "duration": round(dur, 2),
+            "has_audio": any(s["codec_type"] == "audio" for s in info["streams"]),
+            "created": (info["format"].get("tags") or {}).get("creation_time", ""),
+            "hdr": v.get("color_transfer") in ("arib-std-b67", "smpte2084"),
+            "windows": wins, "sheet": str(sheet.relative_to(ROOT)), "description": ""}
+
+
 def cmd_analyse(folder, wd, args):
     (wd / "sheets").mkdir(parents=True, exist_ok=True)
-    out = []
-    for clip in clips_in(folder):
-        info = probe(clip)
-        v = next(s for s in info["streams"] if s["codec_type"] == "video")
-        dur = float(info["format"].get("duration", 0))
-        frames = measure(clip)
-        wins = best_windows(frames, dur, count=max(1, min(4, int(dur // 4))))
-        sheet = wd / "sheets" / f"{clip.stem}.jpg"
-        contact_sheet(clip, dur, sheet)
-        out.append({"file": str(clip.relative_to(ROOT)), "duration": round(dur, 2),
-                    "has_audio": any(s["codec_type"] == "audio" for s in info["streams"]),
-                    "created": (info["format"].get("tags") or {}).get("creation_time", ""),
-                    "hdr": v.get("color_transfer") in ("arib-std-b67", "smpte2084"),
-                    "windows": wins, "sheet": str(sheet.relative_to(ROOT)), "description": ""})
-        w = wins[0] if wins else {}
-        print(f"  {clip.name:40} {dur:5.1f}s  best {w.get('start', 0):5.1f}s  score {w.get('score', 0):.2f}")
+    clips = clips_in(folder)
+    print(f"[engine] measuring {len(clips)} clips, three at a time...")
+    out = in_parallel(lambda clip: analyse_clip(clip, wd), clips)
+    for clip, c in zip(clips, out):
+        w = c["windows"][0] if c["windows"] else {}
+        print(f"  {clip.name:40} {c['duration']:5.1f}s  best {w.get('start', 0):5.1f}s  score {w.get('score', 0):.2f}")
     save_json(wd / "clips.json", {"folder": str(Path(folder)), "clips": out})
     print(f"\n[engine] {len(out)} clips measured. frame sheets in {(wd / 'sheets').relative_to(ROOT)}/")
 
@@ -303,29 +309,53 @@ def storyboard(plan, wd):
 
 # ---------- render ----------
 
-def video_chain(k, p, frames, grade):
-    """one piece: speed, 9:16 framing (+ optional slow push), grade, transition looks."""
+def still_window(src_w, src_h, zoom):
+    """(width, height, x, y) of the part of a clip a still shot shows: the window that scaling the whole
+    clip to cover 9:16 x zoom and cropping the centre would show, to the nearest pixel (corner on an even
+    pixel, where the colour samples sit).
+    cropping it first means only that window is converted and scaled."""
+    zoom_w, zoom_h = int(W * zoom) // 2 * 2, int(H * zoom) // 2 * 2
+    # the size ffmpeg's scale (force_original_aspect_ratio=increase) gives, and the centre crop's corner
+    cover_w = max(zoom_w, round(zoom_h * src_w / src_h))
+    cover_h = max(zoom_h, round(zoom_w * src_h / src_w))
+    fx, fy = cover_w / src_w, cover_h / src_h
+
+    def even(value):
+        return int(round(value / 2)) * 2
+
+    crop_w, crop_h = min(src_w, round(W / fx)), min(src_h, round(H / fy))
+    x = min(even((int((cover_w - W) / 2) & ~1) / fx), src_w - crop_w)
+    y = min(even((int((cover_h - H) / 2) & ~1) / fy), src_h - crop_h)
+    return crop_w, crop_h, max(0, x), max(0, y)
+
+
+def video_chain(k, p, frames, grade, size):
+    """one piece: speed, 9:16 framing (+ optional slow push), grade, transition looks. size = the clip's
+    (width, height). frames are picked (30 fps) before any picture work, so a 60 fps clip never has its
+    spare frames converted or scaled only to be dropped."""
     clip = ROOT / p["clip"]
+    sdr = sdr_filter(clip)
     push = p["push"]
     z = float(p.get("zoom", 1.0))      # static framing: 1.15 = tighter (jump cut look)
     if push:   # slow zoom in, starting from the shot's framing
-        fit = (f"scale={2 * W}:{2 * H}:force_original_aspect_ratio=increase,crop={2 * W}:{2 * H},setsar=1,fps={FPS},"
+        fit = (f"{sdr}scale={2 * W}:{2 * H}:force_original_aspect_ratio=increase,crop={2 * W}:{2 * H},setsar=1,"
                f"zoompan=z='{z}+0.07*on/{frames}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:s={W}x{H}:fps={FPS}")
-    else:
-        zw, zh = int(W * z) // 2 * 2, int(H * z) // 2 * 2
-        fit = f"scale={zw}:{zh}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS}"
+    else:      # still framing: crop the window straight from the clip, convert just that, scale once
+        crop_w, crop_h, x, y = still_window(*size, z)
+        fit = f"crop={crop_w}:{crop_h}:{x}:{y},{sdr}scale={W}:{H},setsar=1"
     freeze = int(round(p.get("freeze", 0) * FPS))
     moving = max(1, frames - freeze)
     if p["ramp"]:      # fast into the moment, then slow on it
         a = max(1, int(moving * 0.4))
         b = moving - a
         src_a, src_b = a / FPS * 2.5, b / FPS * 0.5
-        chain = (f"[{k}:v]{sdr_filter(clip)}split[ra{k}][rb{k}];"
-                 f"[ra{k}]trim=0:{src_a:.3f},setpts=(PTS-STARTPTS)/2.5,{fit},trim=end_frame={a}[rA{k}];"
-                 f"[rb{k}]trim={src_a:.3f}:{src_a + src_b:.3f},setpts=(PTS-STARTPTS)/0.5,{fit},trim=end_frame={b}[rB{k}];"
+        chain = (f"[{k}:v]split[ra{k}][rb{k}];"
+                 f"[ra{k}]trim=0:{src_a:.3f},setpts=(PTS-STARTPTS)/2.5,fps={FPS},{fit},trim=end_frame={a}[rA{k}];"
+                 f"[rb{k}]trim={src_a:.3f}:{src_a + src_b:.3f},setpts=(PTS-STARTPTS)/0.5,fps={FPS},{fit},"
+                 f"trim=end_frame={b}[rB{k}];"
                  f"[rA{k}][rB{k}]concat=n=2:v=1:a=0,setpts=PTS-STARTPTS")
     else:
-        chain = (f"[{k}:v]{sdr_filter(clip)}setpts=(PTS-STARTPTS)/{p['speed']},{fit},"
+        chain = (f"[{k}:v]setpts=(PTS-STARTPTS)/{p['speed']},fps={FPS},{fit},"
                  f"trim=end_frame={moving},setpts=PTS-STARTPTS")
     if freeze:
         chain += f",tpad=stop_mode=clone:stop={freeze}"
@@ -363,20 +393,22 @@ def cmd_render(folder, wd, args):
         edges.append(int(round(t * FPS)))
     total = edges[-1] / FPS
 
+    # each clip is measured once, however many pieces come from it
+    clip_info = {clip: video_info(ROOT / clip) for clip in {p["clip"] for p in pieces}}
     inputs, f, vl, al = [], [], [], []
     for k, p in enumerate(pieces):
         frames = edges[k + 1] - edges[k]
         span = source_span(p) + 0.3
+        info = clip_info[p["clip"]]
         inputs += vin(ROOT / p["clip"], "-ss", f"{p['start']:.3f}", "-t", f"{span:.3f}")
-        vc = video_chain(k, p, frames, grade)
+        vc = video_chain(k, p, frames, grade, (info["width"], info["height"]))
         # whip: blur the end of the shot before too, so the cut reads as one fast swipe
         if k + 1 < len(pieces) and pieces[k + 1]["transition"] == "whip":
             vc += f",gblur=sigma=40:sigmaV=1:enable='gt(t,{frames / FPS - 0.1:.3f})'"
         f.append(vc + f"[v{k}];")
         vl.append(f"[v{k}]")
         d = frames / FPS
-        has_a = any(s["codec_type"] == "audio" for s in probe(ROOT / p["clip"])["streams"])
-        keep = p.get("nat", True) and has_a and (p["kind"] != "teaser" or plan.get("teaser_nat", False))
+        keep = p.get("nat", True) and info["has_audio"] and (p["kind"] != "teaser" or plan.get("teaser_nat", False))
         if keep and not p["ramp"] and 0.5 <= p["speed"] <= 2.0:
             tempo = f"atempo={p['speed']}," if p["speed"] != 1 else ""
             f.append(f"[{k}:a]aformat=sample_rates=48000:channel_layouts=stereo,{tempo}"
