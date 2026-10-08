@@ -135,12 +135,41 @@ def video_info(path):
     }
 
 
-def work_dir_for(video_path):
-    stem = Path(video_path).stem
-    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", stem).strip("-") or "clip"
-    d = WORK_DIR / safe
+def safe_name(text):
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", text).strip("-")
+
+
+def input_subfolders(path):
+    """the subfolders between inputs/<type>/ and path, eg ["mia"] for inputs/talking-head/mia/clip.mov.
+    empty when path sits straight in inputs/<type>/ or outside inputs/ altogether."""
+    try:
+        rel = Path(path).resolve().relative_to(INPUTS_DIR.resolve())
+    except ValueError:
+        return []
+    return list(rel.parts[1:-1])
+
+
+def job_dir(name, legacy_name, owns):
+    """work/<name>/, created if needed. jobs started before subfolders were part of the name live
+    in work/<legacy_name>/: that one is reused when owns(folder) says it belongs to this input."""
+    d = WORK_DIR / (safe_name(name) or "clip")
+    legacy = WORK_DIR / (safe_name(legacy_name) or "clip")
+    if d != legacy and not d.exists() and legacy.is_dir() and owns(legacy):
+        return legacy
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def work_dir_for(video_path):
+    """work/<clip>/ for a video. clips in a subfolder of an input folder (eg one per brand) get the
+    subfolder in the name, work/<subfolder>-<clip>/, so two clips with the same name never share one."""
+    path = Path(video_path)
+
+    def owns(folder):
+        tr = folder / "transcript.json"
+        return tr.exists() and load_json(tr).get("source") == str(path.resolve())
+
+    return job_dir("-".join(input_subfolders(path) + [path.stem]), path.stem, owns)
 
 
 def date_added(p):

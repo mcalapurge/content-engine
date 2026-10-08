@@ -75,7 +75,9 @@ with the guide is matched with grade numbers, since the engine doesn't load exte
 
 Input folders are shared by every brand. To keep clients apart, give each brand (or each job) its
 own subfolder and name it in the command, eg `inputs/talking-head/mia/` with
-`/content-talking-head mia mia`. Claude never changes, moves or deletes anything in `inputs/`.
+`/content-talking-head mia mia`. Each job's working files go in `work/`, named with the subfolder
+(`inputs/talking-head/mia/intro.mov` → `work/mia-intro/`), so two brands' clips with the same name
+never mix. Claude never changes, moves or deletes anything in `inputs/`.
 
 ### brand-specific variations
 

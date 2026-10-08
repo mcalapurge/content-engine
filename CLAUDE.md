@@ -60,7 +60,7 @@ content-engine/
 ```
 
 - **never modify, move or delete anything in `inputs/`** (any of its folders or subfolders).
-- every input folder can have subfolders per job (or per brand): `python -m engine inputs` decides which clips a job uses (see the video-pipeline skill)
+- every input folder can have subfolders per job (or per brand): `python -m engine inputs` decides which clips a job uses (see the video-pipeline skill). a clip in a subfolder gets the subfolder in its work folder name (`inputs/talking-head/mia/intro.mov` → `work/mia-intro/`, `inputs/vlog/mia/trip/` → `work/vlog-mia-trip/`)
 - a brand folder: `brand.md` (who they are, tone, filming, take rules, captions, accounts, defaults per format, past feedback, open items), `effects.md` (named effects), `style.json` (caption/overlay look), `styles/` (optional variations, `--style <name>`), `grade.json` (colour grade), `broll/` (their b-roll + `library.json` + `_previews/`)
 - `.env` api keys (ELEVENLABS_API_KEY). never print or repeat keys
 

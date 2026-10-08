@@ -18,8 +18,8 @@ from pathlib import Path
 import numpy as np
 
 from engine.core.brand import add_brand_arg, get_brand
-from engine.core.common import (h264, vin, OUTPUT_DIR, ROOT, SFX_DIR, VIDEO_EXTS, WORK_DIR, die, find_bin, load_json, probe, run,
-                    save_json, sdr_filter)
+from engine.core.common import (h264, vin, OUTPUT_DIR, ROOT, SFX_DIR, VIDEO_EXTS, die, find_bin, input_subfolders, job_dir,
+                                load_json, probe, run, save_json, sdr_filter)
 from engine.core.grade import grade_filter, has_huesaturation, load_grade
 
 W, H, FPS = 1080, 1920, 30
@@ -447,8 +447,12 @@ def main():
         folder = (ROOT / folder) if (ROOT / folder).exists() else folder
     if not folder.is_dir():
         die(f"can't find the folder '{args.folder}'")
-    wd = WORK_DIR / ("vlog-" + re.sub(r"[^A-Za-z0-9_-]+", "-", folder.name).strip("-"))
-    wd.mkdir(parents=True, exist_ok=True)
+    def owns(work):
+        clips = work / "clips.json"
+        return clips.exists() and Path(load_json(clips).get("folder", "")).resolve() == folder.resolve()
+
+    # subfolders are part of the name (inputs/vlog/mia/trip -> work/vlog-mia-trip) so brands never share one
+    wd = job_dir("vlog-" + "-".join(input_subfolders(folder) + [folder.name]), "vlog-" + folder.name, owns)
     if args.action == "table":       # reprint after hand edits to plan.json
         plan = load_json(wd / "plan.json")
         write_table(plan, wd)
