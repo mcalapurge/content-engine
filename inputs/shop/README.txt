@@ -1,2 +1,6 @@
-drop batch-filmed tiktok shop videos here (several videos in one take).
-say "edit my shop batch" and claude splits them into separate videos.
+tiktok shop takes
+
+what goes here: batch-filmed tiktok shop videos (several videos in one long take, or a compilation).
+per brand: optional subfolders, eg inputs/shop/mia/. name the folder when you ask.
+to start: "edit my shop batch" or /content-tts <brand> [folder] [product name].
+claude never changes, moves or deletes anything in inputs/.
