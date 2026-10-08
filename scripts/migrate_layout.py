@@ -24,6 +24,7 @@ collision: the script lists them and changes nothing until they're sorted by han
 jobs in work/ get their paths updated and are stamped with --brand (the old layout had one brand).
 """
 import filecmp
+import os
 import argparse
 import json
 import shutil
@@ -79,11 +80,22 @@ def stamp_brand(data, brand):
 
 
 def fix_paths(value, pairs):
+    """old-layout paths -> new ones, relative ("broll/x.mp4") or absolute inside the project
+    ("/Users/beth/reels-engine/input/clip.mov", as transcripts and vlog analyses save them)."""
     if isinstance(value, str):
+        root = ""
+        for base in {str(ROOT) + os.sep, ROOT.as_posix() + "/"}:
+            if value.startswith(base):
+                root, value = value[:len(base)], value[len(base):]
+                break
+        sep = "\\" if "\\" in root else "/"
         for old, new in pairs:
-            if value.startswith(old):
-                return new + value[len(old):]
-        return value
+            if value.replace("\\", "/").startswith(old):
+                value = new + value[len(old):]
+                if sep != "/":
+                    value = value.replace("/", sep)
+                break
+        return root + value
     if isinstance(value, list):
         return [fix_paths(v, pairs) for v in value]
     if isinstance(value, dict):
@@ -118,8 +130,11 @@ def main():
             collisions.append((src, dst))
 
     pairs = prefixes(args.brand)
-    json_fixes = []
-    for p in list((ROOT / "work").rglob("*.json")) + list((ROOT / "brands").glob("*/broll/library.json")):
+    json_fixes = []       # (where the file is now, where it will be, its rewritten data)
+    moving = {src: dst for src, dst in final}
+    candidates = list((ROOT / "work").rglob("*.json")) + list((ROOT / "brands").glob("*/broll/library.json"))
+    candidates += [src for src in moving if src.name == "library.json"]   # an old broll/library.json being moved
+    for p in candidates:
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
         except (ValueError, OSError):
@@ -128,15 +143,15 @@ def main():
         if p.parent.parent == ROOT / "work":
             new = stamp_brand(new, args.brand)
         if new != data:
-            json_fixes.append((p, new))
+            json_fixes.append((p, moving.get(p, p), new))
 
     rel = lambda p: p.relative_to(ROOT).as_posix()
     for src, dst in final:
         print(f"  move  {rel(src)}  ->  {rel(dst)}")
     for src, dst in already:
         print(f"  same  {rel(src)}  (already at {rel(dst)}, nothing to do)")
-    for p, _ in json_fixes:
-        print(f"  json  {rel(p)}  (paths and brand)")
+    for _, dst, _ in json_fixes:
+        print(f"  json  {rel(dst)}  (paths and brand)")
     if collisions:
         print("\nthese files already exist at their new place with different contents:")
         for src, dst in collisions:
@@ -155,8 +170,8 @@ def main():
     for src, dst in final:
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dst))
-    for p, data in json_fixes:
-        p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    for _, dst, data in json_fixes:          # after the moves, so a moved library is rewritten where it now is
+        dst.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nmoved {len(final)} file(s), updated {len(json_fixes)} json file(s).")
     copies = {src for src, _ in already}
     leftovers = [old for old, _ in moves(args.brand) if (ROOT / old).is_dir()

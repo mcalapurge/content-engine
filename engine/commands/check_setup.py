@@ -3,6 +3,7 @@
 usage: python -m engine check_setup
 """
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -16,6 +17,13 @@ def line(good, name, detail):
     global ok
     ok = ok and good
     print(f"  {'OK ' if good else 'MISSING'}  {name} - {detail}")
+
+
+def ffmpeg_major(version_line):
+    """the major version from `ffmpeg -version`'s first line ("ffmpeg version 7.1.1 ...", "n7.0.2"),
+    or None for a build straight from ffmpeg's latest code ("N-127233-g..."), which is newer than any release."""
+    m = re.search(r"version n?(\d+)\.", version_line)
+    return int(m.group(1)) if m else None
 
 
 def main():
@@ -33,9 +41,13 @@ def main():
 
     line(shutil.which("ffprobe") is not None, "ffprobe", "comes with ffmpeg")
     if ff:
-        good = " huesaturation " in filters and " zoompan " in filters
-        line(good, "ffmpeg version", "new enough for your colour grade + zooms" if good
-             else "too old for the HSL part of your grade - update ffmpeg (brew upgrade ffmpeg / winget upgrade Gyan.FFmpeg)")
+        version = subprocess.run([ff, "-version"], capture_output=True, text=True).stdout.split("\n")[0]
+        major = ffmpeg_major(version)
+        # the engine hands ffmpeg its filter script with -/filter_complex, which arrived in ffmpeg 7
+        good = (major is None or major >= 7) and " huesaturation " in filters and " zoompan " in filters
+        line(good, "ffmpeg version", f"{major or 'latest'}: new enough for renders, your colour grade + zooms" if good
+             else f"{major}: too old, renders need ffmpeg 7 or newer - update ffmpeg "
+                  "(brew upgrade ffmpeg / winget upgrade Gyan.FFmpeg)")
 
     try:
         import faster_whisper  # noqa

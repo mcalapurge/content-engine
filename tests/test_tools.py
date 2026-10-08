@@ -175,6 +175,29 @@ class Migration(unittest.TestCase):
         self.assertEqual((self.root / "inputs/talking-head/README.txt").read_text(encoding="utf-8"), "new readme")
         self.assertIn("nothing to move", self.migrate("--apply").stdout)       # running it twice is harmless
 
+    def test_absolute_paths_and_a_moved_library_are_rewritten(self):
+        # a subfolder job: its transcript saved the clip's absolute path, its vlog analysis the folder's
+        (self.root / "input/mia").mkdir()
+        (self.root / "input/mia/intro.mov").write_text("", encoding="utf-8")
+        old_clip = (self.root / "input/mia/intro.mov").resolve()
+        (self.root / "work/intro").mkdir()
+        (self.root / "work/intro/transcript.json").write_text(json.dumps({"source": str(old_clip)}), encoding="utf-8")
+        (self.root / "work/vlog-trip/clips.json").write_text(
+            json.dumps({"folder": str((self.root / "input_vlog/trip").resolve())}), encoding="utf-8")
+        # a brand with no library yet: the old one moves there and must be rewritten where it lands
+        (self.root / "broll/library.json").write_text(json.dumps({"clips": [
+            {"file": "broll/products/x.mp4", "preview": "broll/_previews/products_x_mp4.jpg"}]}), encoding="utf-8")
+        res = subprocess.run([sys.executable, "scripts/migrate_layout.py", "--brand", "mia", "--apply"], cwd=self.root,
+                             capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        source = json.loads((self.root / "work/intro/transcript.json").read_text(encoding="utf-8"))["source"]
+        self.assertEqual(Path(source), (self.root / "inputs/talking-head/mia/intro.mov").resolve())
+        folder = json.loads((self.root / "work/vlog-trip/clips.json").read_text(encoding="utf-8"))["folder"]
+        self.assertEqual(Path(folder), (self.root / "inputs/vlog/trip").resolve())
+        clip = json.loads((self.root / "brands/mia/broll/library.json").read_text(encoding="utf-8"))["clips"][0]
+        self.assertEqual((clip["file"], clip["preview"]),
+                         ("brands/mia/broll/products/x.mp4", "brands/mia/broll/_previews/products_x_mp4.jpg"))
+
     def test_a_real_clash_stops_everything(self):
         (self.root / "brands/beth/broll/products").mkdir(parents=True)
         (self.root / "brands/beth/broll/products/x.mp4").write_text("different", encoding="utf-8")

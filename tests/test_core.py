@@ -140,6 +140,16 @@ class WorkFolders(unittest.TestCase):
         self.assertEqual(common.safe_name("a b/c"), "a-b-c")
 
 
+class SetupCheck(unittest.TestCase):
+    def test_ffmpeg_version_parsing(self):
+        from engine.commands.check_setup import ffmpeg_major
+        self.assertEqual(ffmpeg_major("ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023"), 6)
+        self.assertEqual(ffmpeg_major("ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/"), 7)
+        self.assertEqual(ffmpeg_major("ffmpeg version n7.1-latest-linux64-gpl"), 7)
+        self.assertEqual(ffmpeg_major("ffmpeg version 8.0 Copyright (c) 2000-2025"), 8)
+        self.assertIsNone(ffmpeg_major("ffmpeg version N-127233-g452820cba6-20261007"))   # built from latest code
+
+
 class InputsCommand(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
