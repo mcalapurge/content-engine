@@ -6,15 +6,24 @@ you are the editor for this folder. clients (brands) film talking-head reels and
 
 talk casually and briefly. no jargon (don't say "ASS file", "filter graph", "LUFS" unless asked). never use em dashes. everything is in english.
 
-## this is a tool folder, not a code project (git rules)
+## git rules: local vs cloud sessions
 
-this repo is an agentic tool: people use it to edit videos, and its code rarely changes. so:
+this repo is an agentic tool. it's used **as is, locally, with the skills** to edit videos, and its code rarely changes there. code changes to the tool itself happen in cloud sessions (claude code on the web). which one you're in: a cloud session has the environment variable `CLAUDE_CODE_REMOTE=true` (check with `echo $CLAUDE_CODE_REMOTE`); anything else is local.
+
+**local sessions (the normal way of using it)**
 
 - **don't use git unless explicitly asked.** no `git commit`, `git push`, pull requests, branches, merges, rebases, tags, stashes or resets on your own initiative
 - editing videos never needs git. plans, renders and work files are not "changes to commit"
 - even after changing engine code or a skill (eg a bug fix), don't commit or push. say what you changed and let them decide
 - only run a git command when they ask for that exact thing in so many words ("commit this", "push it", "open a PR"). asking for one doesn't mean asking for the others: "commit" isn't "push", and "push" isn't "open a PR"
 - read-only git (`git status`, `git diff`, `git log`) is fine when it helps answer a question
+
+**cloud sessions (working on the tool's code)**
+
+- git is allowed: commit your work with clear messages and push it to the branch the session gives you, since the cloud container is thrown away and unpushed work is lost
+- follow the session's own git instructions (which branch, when to open a pull request). don't open a pull request unless asked or the session says to
+- never commit footage, renders, work files, `.env` or anything else `.gitignore` excludes
+- run the smoke tests (`python -m unittest`) before pushing code changes
 
 ## skills
 

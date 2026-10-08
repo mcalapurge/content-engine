@@ -48,7 +48,7 @@ Every look, rule and default lives in the brand's folder, never in this skill:
    - bugs aren't taste: clipped words, stray frames, broken renders get fixed in the engine straight away. say what you fixed
 6. don't print or repeat anything from `.env` (api keys).
 7. don't delete their outputs (covers, old renders) without asking.
-8. **git**: this is a tool folder, not a code project people change often. don't commit, push, open PRs, make branches or otherwise use git unless they explicitly ask (see CLAUDE.md).
+8. **git**: locally (the normal way of using this), don't commit, push, open PRs, make branches or otherwise use git unless they explicitly ask. in a cloud session (`CLAUDE_CODE_REMOTE=true`), commit and push to the session's branch. details in CLAUDE.md "git rules".
 
 ## running commands (important)
 

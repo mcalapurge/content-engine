@@ -9,8 +9,10 @@ look, colour grade and b-roll.
 - **how Claude works in here**: [CLAUDE.md](CLAUDE.md) and the skills in [.claude/skills/](.claude/skills/)
 - **brands**: [brands/README.md](brands/README.md)
 
-This is a tool folder rather than a code project that changes often: Claude is told not to commit,
-push or open pull requests unless asked.
+This is a tool folder: it's used as is, locally, with the skills. Locally, Claude is told not to
+commit, push or open pull requests unless asked. Changes to the tool's own code happen in cloud
+sessions (Claude Code on the web), where Claude commits and pushes its work to the session's branch.
+See "git rules" in [CLAUDE.md](CLAUDE.md).
 
 ## using the skills with brands
 
