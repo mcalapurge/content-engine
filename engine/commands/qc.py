@@ -105,7 +105,7 @@ def main():
     if edl.get("capcut_pack"):
         from pathlib import Path
         pack = Path(edl["capcut_pack"])
-        need = ["1_video_clean.mp4", "2_graphics_transparent.mov", "3_captions.srt"]
+        need = ["1_video_clean.mp4", "2_graphics_on_black.mp4", "2_graphics_matte.mp4", "3_captions.srt"]
         gone = [n for n in need if not (pack / n).exists()]
         check("capcut pack", "FAIL" if gone else "PASS",
               f"missing {', '.join(gone)}" if gone else "all layers exported")

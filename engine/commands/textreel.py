@@ -20,7 +20,7 @@ import numpy as np
 
 from engine.core.brand import add_brand_arg, get_brand, load_style
 from engine.core.common import (h264, vin, FONTS_DIR, MUSIC_DIR, OUTPUT_DIR, ROOT, WORK_DIR, die, find_bin, load_json,
-                    probe, run, save_json, sdr_filter)
+                    run, save_json, sdr_filter)
 from engine.commands.vlog import detect_beats
 
 W, H, FPS = 1080, 1920, 30

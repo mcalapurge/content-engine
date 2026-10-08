@@ -12,13 +12,14 @@ how a render is put together:
   6. encode     one ffmpeg run reads a filter script (filter.txt) and writes the reel
 """
 import argparse
+import os
 import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 from engine.core.brand import add_brand_arg, get_brand, load_style
-from engine.core.common import (IMAGE_EXTS, OUTPUT_DIR, ROOT, SFX_DIR, WORK_DIR, die, find_bin, h264, load_json,
+from engine.core.common import (FONTS_DIR, IMAGE_EXTS, OUTPUT_DIR, ROOT, SFX_DIR, WORK_DIR, die, find_bin, h264, load_json,
                                 norm, resolve_video, run, save_json, sdr_filter, vin, work_dir_for)
 from engine.core.contrast import MIN_RATIO, badge_colours, problems as contrast_problems, takeover_colours
 from engine.core.grade import grade_filter, has_huesaturation, load_grade
@@ -27,8 +28,6 @@ from engine.core.grade import grade_filter, has_huesaturation, load_grade
 FRAME_W, FRAME_H = 1080, 1920   # 9:16. cut previews swap in half size, see half_size_frames()
 FPS = 30
 SAMPLE_RATE = 48000
-FONTS_FROM_WORK_DIR = "../../assets/fonts"           # ffmpeg runs inside work/<clip>/
-FONTS_FROM_PREVIEW_DIR = "../../../assets/fonts"     # ...or inside work/<clip>/<x>_previews/
 
 # ---------- timeline ----------
 JOIN_GAP = 0.30          # pauses shorter than this stay in (natural breathing)
@@ -233,6 +232,15 @@ def frame_filter(seg, src_w, src_h):
     zoom = f"{seg['z0']:.5f}+{seg['z1'] - seg['z0']:.5f}*on/{frames}"
     return (base + f",zoompan=z='{zoom}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*{FACE_Y}'"
             f":d=1:s={FRAME_W}x{FRAME_H}:fps={FPS}")
+
+
+def fonts_dir_from(folder):
+    """assets/fonts/ as seen from the folder ffmpeg runs in (eg ../../assets/fonts from work/<clip>/).
+    relative, because a windows drive letter's colon breaks ffmpeg filter options."""
+    try:
+        return os.path.relpath(FONTS_DIR, folder).replace("\\", "/")
+    except ValueError:          # windows: fonts and work on different drives
+        return FONTS_DIR.as_posix()
 
 
 @contextmanager
@@ -495,7 +503,8 @@ def takeover_events(line, start, end):
     card_secs = (end - start) / len(cards)
     for index, card in enumerate(cards):
         card_start = start + index * card_secs
-        text = ass_escape(card.strip()).replace("\\n", "\\N")
+        # "\n" (typed) or a real newline = a line break on the card. converted after escaping, which drops backslashes
+        text = ass_escape(card.strip().replace("\\n", "\n")).replace("\n", "\\N")
         events.append((card_start, card_start + card_secs, "TakeText",
                        "{\\fscx92\\fscy92\\t(0,140,\\fscx100\\fscy100)}" + text))
     return events
@@ -779,7 +788,9 @@ def build(video, work_dir, plan, transcript, style, opts):
         filters.append("[speech]asplit=3[sp][sc][spx];")
         filters.append(f"[{input_index}:a]{STEREO},volume={volume},"
                        f"atrim=0:{total:.3f},afade=t=out:st={max(0, total - MUSIC_FADE_OUT):.3f}:d={MUSIC_FADE_OUT}[mraw];")
-        filters.append(f"[sc]{STEREO}[scs];")
+        # the ducking key is padded so it never runs out before the music does: when it ended first, the
+        # compressor stopped and the last ~0.1-0.3s of music (a different amount each run) went missing
+        filters.append(f"[sc]{STEREO},apad[scs];")
         filters.append(f"[mraw][scs]sidechaincompress={MUSIC_DUCK}[music];")
         sound_labels.append("music")
     else:
@@ -877,7 +888,7 @@ def _render_windows(video, windows, edit, transcript, grade, style, preview_dir,
     """render each window of the finished edit as its own labelled clip. returns
     (clips, report) where report is [(number, label, flash times)]."""
     clips, report = [], []
-    fonts = FONTS_FROM_PREVIEW_DIR
+    fonts = fonts_dir_from(preview_dir)
     for number, (window_start, window_end, points) in enumerate(windows, 1):
         window_len = window_end - window_start
         inputs, filters, video_labels, audio_labels = [], [], [], []
@@ -1001,9 +1012,10 @@ def preview_spots(video, work_dir, transcript, style, edit, grade, spots, pad=1.
 # ---------- finished reel, cover, capcut pack ----------
 
 def render_reel(edit, work_dir, out, style_name, grade, draft):
+    fonts = fonts_dir_from(work_dir)
     filters = list(edit.filters)
-    filters.append(f"[graded]subtitles=graphics.ass:fontsdir={FONTS_FROM_WORK_DIR},"
-                   f"subtitles=captions.ass:fontsdir={FONTS_FROM_WORK_DIR}[vout];")
+    filters.append(f"[graded]subtitles=graphics.ass:fontsdir={fonts},"
+                   f"subtitles=captions.ass:fontsdir={fonts}[vout];")
     filters.append(mix(edit.sound_labels, "aout", edit.total))
     print(f"[engine] rendering {len(edit.segments)} cuts, {edit.total:.1f}s, style '{style_name}'"
           f"{', graded' if grade else ''}, {len(edit.windows)} b-roll, {len(edit.cues)} sound fx"
@@ -1037,8 +1049,8 @@ def export_capcut(edit, work_dir, pack, plan, transcript, style):
     # h.264 can't hold transparency, so: the graphics on black + a black/white matte (white = show)
     run([find_bin("ffmpeg"), "-y", "-f", "lavfi", "-i",
          f"color=c=black:s={FRAME_W}x{FRAME_H}:r={FPS}:d={total:.3f}", "-filter_complex",
-         f"[0:v]split[a][b];[a]subtitles=graphics.ass:fontsdir={FONTS_FROM_WORK_DIR}[rgb];"
-         f"[b]subtitles=graphics_matte.ass:fontsdir={FONTS_FROM_WORK_DIR}[m]",
+         f"[0:v]split[a][b];[a]subtitles=graphics.ass:fontsdir={fonts_dir_from(work_dir)}[rgb];"
+         f"[b]subtitles=graphics_matte.ass:fontsdir={fonts_dir_from(work_dir)}[m]",
          "-map", "[rgb]", *h264(), "-r", str(FPS), "-movflags", "+faststart", str(pack / "2_graphics_on_black.mp4"),
          "-map", "[m]", *h264(), "-r", str(FPS), "-movflags", "+faststart", str(pack / "2_graphics_matte.mp4")],
         cwd=work_dir)

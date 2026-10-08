@@ -13,7 +13,7 @@ import argparse
 import re
 
 from engine.core.brand import add_brand_arg, get_brand
-from engine.core.common import (vin, IMAGE_EXTS, ROOT, VIDEO_EXTS, find_bin, load_json, norm, probe,
+from engine.core.common import (vin, IMAGE_EXTS, ROOT, VIDEO_EXTS, find_bin, load_json, probe,
                     resolve_video, run, save_json, work_dir_for)
 
 STOP = set("""a an the and or but so to of in on at for with from by is are was were be been it its
@@ -117,7 +117,7 @@ def cmd_match(video_arg, max_share, brand_arg):
         if best:
             scored.append((best_s, l, best))
     scored.sort(key=lambda x: -x[0])
-    used, last_line, chosen = set(), None, []
+    used, chosen = set(), []
     for s, l, c in scored:
         if len(chosen) >= budget or c["file"] in used:
             continue

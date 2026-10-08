@@ -103,7 +103,7 @@ work/                  per-job working files (git-ignored)
 output/                finished videos (git-ignored)
 docs/                  engine notes (render audit)
 scripts/               one-off maintenance (migrate_layout.py)
-tests/                 smoke tests
+tests/                 logic, content and render tests + golden copies of render recipes
 ```
 
 ## running
@@ -117,6 +117,34 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
 Always run from the project root. Needs Python 3.9+ and a full ffmpeg build (7+, with libass).
+
+## tests
+
+```
+python -m unittest                      # everything (about 3 minutes with ffmpeg, a few seconds without)
+REELS_SKIP_MEDIA=1 python -m unittest   # just the fast logic, brand file and doc checks
+UPDATE_GOLDEN=1 python -m unittest tests.test_media   # accept a deliberate change to the render recipes
+RUN_TRANSCRIBE=1 python -m unittest tests.test_transcribe   # real whisper on a synthetic voice (slow)
+```
+
+| file | what it covers | needs |
+|---|---|---|
+| `tests/test_plan.py` | rough cut: lines, retakes, fillers, stats, hooks, the `plan` command | nothing |
+| `tests/test_render_logic.py` | timeline, zooms, captions, graphics, b-roll timing, sound cues, the mix | nothing |
+| `tests/test_core.py` | brands and style lookup, contrast, grade settings, work folder names, `inputs` | nothing |
+| `tests/test_tools.py` | b-roll matching, text reels, vlog scoring, batch splitting, `brand`, the layout migration | nothing |
+| `tests/test_content.py` | brand files, style packs, b-roll library, and every command / flag the docs and skills mention | nothing |
+| `tests/test_smoke.py` | every command loads, folders exist | nothing |
+| `tests/test_media.py` | real renders on synthetic clips: colour table, hdr, beats, a full reel (recipes compared with `tests/golden/`), previews, capcut pack, qc, batch, vlog, text reels, b-roll index, takes | ffmpeg 7+ with every filter |
+| `tests/test_transcribe.py` | whisper's tiny model on a synthetic voice | `RUN_TRANSCRIBE=1`, faster-whisper, espeak-ng or `say` |
+
+Tests run in a sandbox, `work/_tests/`, which is removed afterwards: they never touch real footage,
+jobs, outputs or brands. Encoded videos differ slightly from run to run, so renders are checked
+by size, length and streams, and the recipe files that produced them (captions, graphics, filter
+script, edl) are compared exactly with the golden copies. GitHub Actions
+([.github/workflows/tests.yml](.github/workflows/tests.yml)) runs lint, the logic tests on
+ubuntu / windows / macOS with Python 3.9 and 3.13, the media tests on ubuntu with a static
+ffmpeg build, and the transcription test weekly or on demand.
 
 ## brands in the code
 

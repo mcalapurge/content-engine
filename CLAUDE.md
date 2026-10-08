@@ -56,7 +56,7 @@ content-engine/
 ├── output/                finished videos, grade previews (covers only when asked)
 ├── docs/                  notes about the engine (eg the render audit)
 ├── scripts/               one-off maintenance scripts (eg moving an old layout to this one)
-└── tests/                 smoke tests: python -m unittest
+└── tests/                 tests: python -m unittest (see README "tests")
 ```
 
 - **never modify, move or delete anything in `inputs/`** (any of its folders or subfolders).
