@@ -1,0 +1,57 @@
+# python / env
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# os
+.DS_Store
+
+# video files, anywhere in the project
+*.mp4
+*.MP4
+*.mov
+*.MOV
+*.m4v
+*.M4V
+*.avi
+*.mkv
+*.webm
+
+# raw footage folders: keep the readme, ignore everything else (subfolders too)
+/input/*
+!/input/README.txt
+!/input/.gitkeep
+/input_shop/*
+!/input_shop/README.txt
+!/input_shop/.gitkeep
+/input_vlog/*
+!/input_vlog/README.txt
+!/input_vlog/.gitkeep
+/input_trial/*
+!/input_trial/README.txt
+!/input_trial/.gitkeep
+
+# generated work files and other people's reels
+/work/*
+!/work/.gitkeep
+/references/*
+!/references/README.txt
+!/references/.gitkeep
+
+# finished reels, previews, covers (captions.md is hand-written, keep it)
+/output/*
+!/output/.gitkeep
+!/output/trial/
+/output/trial/*
+!/output/trial/captions.md
+
+# music (big + licensing). sfx are small, so they are tracked
+/music/*
+!/music/README.txt
+!/music/.gitkeep
+
+# b-roll previews are rebuilt by: engine/broll.py index
+# (library.json is tracked: it holds hand-written descriptions the script can't recreate)
+/broll/_previews/*
+!/broll/_previews/.gitkeep

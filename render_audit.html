@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Render pipeline audit</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1e1e1e; --muted: #6b6560; --line: #e6e1db; --card: #ffffff;
+    --accent: #b3466e; --accent-soft: #fbeaf0; --ok: #2f7d4f; --ok-soft: #e4f3ea;
+    --warn: #9a6b00; --warn-soft: #fff3d6; --info: #2a5fa8; --info-soft: #e5eefb;
+    --code: #f1ede8; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161513; --fg:#ece8e2; --muted:#a39c94; --line:#2e2b27; --card:#1f1d1a;
+      --accent:#e58bb0; --accent-soft:#3a2430; --ok:#7cc69a; --ok-soft:#1e3328; --warn:#e0b45a; --warn-soft:#3a3018;
+      --info:#8fb4ee; --info-soft:#1d2a3f; --code:#26231f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 40px 16px 80px; }
+  h1 { font-size: 30px; line-height:1.15; margin: 0 0 6px; letter-spacing:-0.01em; }
+  h2 { font-size: 21px; margin: 44px 0 12px; padding-top: 18px; border-top: 1px solid var(--line); }
+  h3 { font-size: 17px; margin: 0 0 6px; }
+  p { margin: 8px 0; }
+  .sub { color: var(--muted); margin-bottom: 22px; }
+  .lede { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .lede p { margin: 6px 0; }
+  table { width:100%; border-collapse: collapse; font-size: 14.5px; margin: 10px 0 4px; }
+  th, td { text-align:left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; }
+  td.n { color: var(--muted); white-space: nowrap; }
+  .badge { display:inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .A { background: var(--ok-soft); color: var(--ok); }
+  .B { background: var(--info-soft); color: var(--info); }
+  .C { background: var(--warn-soft); color: var(--warn); }
+  .D { background: var(--accent-soft); color: var(--accent); }
+  .card { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 14px 0; }
+  .card .meta { color: var(--muted); font-size: 13.5px; margin-bottom: 8px; }
+  .card .meta b { color: var(--fg); font-weight: 600; }
+  .row { display:grid; grid-template-columns: 110px 1fr; gap: 6px 14px; margin: 10px 0; font-size: 15px; }
+  .row > span:first-child { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing:.04em; padding-top: 3px; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 5px; }
+  pre { font-family: var(--mono); font-size: 12.5px; background: var(--code); padding: 12px 14px; border-radius: 10px; overflow-x: auto; line-height: 1.5; margin: 8px 0; }
+  pre code { background: none; padding: 0; }
+  ul { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .legend span { margin-right: 10px; }
+  .note { border-left: 3px solid var(--accent); padding: 6px 12px; color: var(--muted); font-size: 14.5px; margin: 10px 0; }
+  @media (max-width: 600px) { .row { grid-template-columns: 1fr; gap: 2px; } h1 { font-size: 26px; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Render pipeline audit</h1>
+<p class="sub">reels-engine, 8 October 2026. Read-only: nothing was run, changed or tested. Every item below keeps the finished video looking exactly the same.</p>
+
+<div class="lede">
+  <p><b>What was looked at:</b> the five skills (<code>video-pipeline</code> and its five reference files, <code>/content-talking-head</code>, <code>/content-vlog</code>, <code>/content-trial-reels</code>, <code>/content-tts</code>) and every engine script that touches video: <code>render.py</code>, <code>vlog.py</code>, <code>textreel.py</code>, <code>batch.py</code>, <code>grade.py</code>, <code>common.py</code>, <code>broll.py</code>, <code>review.py</code>, <code>takes.py</code>, <code>analyse.py</code>, <code>qc.py</code>, plus the real filter scripts left in <code>work/</code> from past renders and the properties of the actual source files.</p>
+  <p><b>What "won't alter the look" means here.</b> Each suggestion is graded:</p>
+  <p class="legend">
+    <span class="badge A">A bit-identical</span> the frames going into the encoder are the same bytes.
+    <span class="badge B">B identical to the eye</span> differences at the level of a rounding error or encoder noise, same class as changes the engine has already accepted.
+    <span class="badge C">C look into first</span> real speed potential but it needs a measurement before anyone touches it.
+    <span class="badge D">D previews only</span> speeds up drafts and checks, never the final file.
+  </p>
+  <p><b>Estimates are reasoned, not measured.</b> The only measured number is the skill's own baseline: a 1:33 reel renders in about 1m30s wall time using 279 s of processor time (about three cores busy on a machine with ten).</p>
+</div>
+
+<h2>Summary</h2>
+<table>
+  <thead><tr><th>#</th><th>Suggestion</th><th>Where</th><th>Class</th><th>Rough gain</th><th>Effort</th></tr></thead>
+  <tbody>
+    <tr><td class="n">1</td><td>Drop to 30 fps before any picture work, not after</td><td>render, vlog, textreel</td><td><span class="badge A">A</span></td><td>Halves per-frame work on 60 fps sources (half the vlog library)</td><td>Small</td></tr>
+    <tr><td class="n">2</td><td>Trim to the exact frame count before the heavy filters, not after</td><td>render, textreel</td><td><span class="badge A">A</span></td><td>About 5 to 8% of frame work on a talking-head reel</td><td>Small</td></tr>
+    <tr><td class="n">3</td><td>Run the pre-render scans at the same time, and cache the silence map</td><td>render</td><td><span class="badge A">A</span></td><td>Seconds per run, three runs per reel</td><td>Small</td></tr>
+    <tr><td class="n">4</td><td>Scan b-roll for built-in cuts when it is indexed, not during the first render</td><td>broll, render</td><td><span class="badge A">A</span></td><td>Minutes off the first render that uses new b-roll</td><td>Small</td></tr>
+    <tr><td class="n">5</td><td>Three jobs at a time inside the batch tools</td><td>textreel, vlog analyse, cut previews, batch cut</td><td><span class="badge A">A</span></td><td>Up to about 2.5x on those steps</td><td>Medium</td></tr>
+    <tr><td class="n">6</td><td>Review thumbnails in one ffmpeg call instead of one per line</td><td>review</td><td><span class="badge A">A</span></td><td>A few seconds per review page</td><td>Small</td></tr>
+    <tr><td class="n">7</td><td>Stop probing the same clip over and over in the vlog render</td><td>vlog</td><td><span class="badge A">A</span></td><td>A few seconds per vlog render</td><td>Tiny</td></tr>
+    <tr><td class="n">8</td><td>Burn graphics and captions in one pass</td><td>render</td><td><span class="badge A">A</span></td><td>Small, a couple of percent</td><td>Small</td></tr>
+    <tr><td class="n">9</td><td>Render a single reel in two or three parallel chunks</td><td>render</td><td><span class="badge B">B</span></td><td>Potentially 1.5x to 2.5x on every final render. Biggest item</td><td>Large</td></tr>
+    <tr><td class="n">10</td><td>Cut shop batches without re-encoding</td><td>batch</td><td><span class="badge B">B</span></td><td>Minutes per batch, and one fewer lossy generation</td><td>Small</td></tr>
+    <tr><td class="n">11</td><td>Crop before the HDR conversion on still framings</td><td>render</td><td><span class="badge B">B</span></td><td>20 to 70% off HDR conversion on those shots</td><td>Small</td></tr>
+    <tr><td class="n">12</td><td>Crop first, then scale, for static vlog shots</td><td>vlog</td><td><span class="badge B">B</span></td><td>Small</td><td>Small</td></tr>
+    <tr><td class="n">13</td><td>Map the hidden pixel-format conversions before changing any</td><td>render, grade</td><td><span class="badge C">C</span></td><td>Unknown until mapped. Also surfaces a possible clarity quirk</td><td>Medium</td></tr>
+    <tr><td class="n">14</td><td>The zoom filter is the hot spot; a threaded stand-in exists but must be A/B'd</td><td>render, vlog, textreel</td><td><span class="badge C">C</span></td><td>Large if it passes a frame diff</td><td>Medium</td></tr>
+    <tr><td class="n">15</td><td>Half-size drafts; fold the flash scan into the preview render</td><td>render</td><td><span class="badge D">D</span></td><td>About 4x on drafts</td><td>Small</td></tr>
+  </tbody>
+</table>
+
+<h2>Where the time goes</h2>
+<p>A finished talking-head reel is one ffmpeg command. For the 92.6 s DJI reel in <code>work/</code> that command has 22 talking segments, 7 b-roll shots and 9 sound effects as separate inputs (38 inputs). Per frame, the work is roughly:</p>
+<ul>
+  <li><b>Decode</b> runs on the Mac's media engine and is not the bottleneck. Every input is a 10-bit HEVC phone file (DJI 1728x3072 at 29.97 fps, or iPhone 4K at 60 fps, HDR on the iPhone clips). The decoded frames are copied back to normal memory for the filters.</li>
+  <li><b>Framing</b>: still shots crop the exact window and scale once (already optimised). Slow zooms and <i>every</i> b-roll shot go through a 2160x3840 canvas and the <code>zoompan</code> filter, which rebuilds its scaler for every frame and only uses one core. This is the single most expensive thing in the chain.</li>
+  <li><b>Grade</b>: one 3D colour table pass plus a light sharpen, both multi-core. Already optimised.</li>
+  <li><b>Text</b>: two separate caption renderers run over every frame (graphics, then captions), one core each.</li>
+  <li><b>Encode</b>: hardware h.264, effectively free.</li>
+</ul>
+<p>The filter graph itself is scheduled on one thread. Filters that support slice threading (scale, colour table, sharpen, overlay, HDR conversion) fan out to other cores while they run; zoompan and the caption renderer do not. That is why a render uses about three cores on a ten-core machine and why items 5, 9 and 14 are the ones with real headroom.</p>
+
+<h2>A. Bit-identical changes</h2>
+
+<div class="card">
+  <h3>1. Drop to 30 fps before any picture work</h3>
+  <p class="meta"><b>Where:</b> <code>engine/render.py</code> <code>frame_filter()</code> lines 134 to 152 and <code>build()</code> line 563, <code>broll_filter()</code> lines 457 to 460; <code>engine/vlog.py</code> <code>video_chain()</code> lines 311 to 315; <code>engine/textreel.py</code> <code>render_reel()</code> lines 220 to 223.</p>
+  <div class="row"><span>Now</span><span>The chain per clip is: HDR conversion (4 colour passes in floating point, if the clip is HDR), then crop, scale, and only then <code>fps=30</code>. For a 60 fps iPhone clip every second frame goes through all of that and is then thrown away by the fps filter. 41 of the 85 clips in <code>input_vlog/</code> are 4K, 60 fps and HDR; so is <code>input/old/IMG_4440.MOV</code>. The b-roll library is 30 fps, so this costs nothing there.</span></div>
+  <div class="row"><span>Change</span><span>Move <code>fps=30</code> to the front of each chain, straight after the <code>setpts</code> reset (in vlog, after the speed <code>setpts</code>, since fps must see the retimed stamps). Everything else stays in the same order.</span></div>
+  <div class="row"><span>Why identical</span><span>The fps filter chooses frames by timestamp only; it never looks at pixels. The frames that survive are exactly the same source frames, and each one then goes through exactly the same spatial filters as before. The b-roll chain and the textreel chain already have fps before zoompan, they just have scale and crop ahead of it.</span></div>
+  <div class="row"><span>Gain</span><span>On 60 fps HDR sources: half the HDR conversion, half the scaling, half the memory traffic. On 30 fps sources: none. This is the biggest free win for vlog edits and trial reels, which draw on that library.</span></div>
+</div>
+
+<div class="card">
+  <h3>2. Trim to the exact frame count before the heavy filters</h3>
+  <p class="meta"><b>Where:</b> <code>engine/render.py</code> <code>build()</code> lines 559 to 565 and <code>_render_windows()</code> lines 710 to 712, <code>broll_filter()</code> lines 460 to 465; <code>engine/textreel.py</code> lines 222 to 225.</p>
+  <div class="row"><span>Now</span><span>Each segment is read with 0.3 s of slack (<code>-t dur + 0.3</code>), goes through crop/scale or the 2x canvas plus zoompan, and only then hits <code>tpad</code> (clone the last frame if short) and <code>trim=end_frame=N</code>. So 9 extra frames per segment are fully framed and zoomed and then dropped. B-roll reads 0.5 s of slack and keeps 4 spare frames, so about 11 frames per shot are wasted. Text reels read 0.4 s of slack.</span></div>
+  <div class="row"><span>Change</span><span>Order the chain as <code>setpts, fps=30, tpad, trim=end_frame=N</code>, then crop/scale/zoompan. The zoompan expression (<code>on/N</code>) does not change.</span></div>
+  <div class="row"><span>Why identical</span><span><code>tpad</code> clones a frame and <code>trim</code> counts frames; neither cares what the pixels are. zoompan with <code>d=1</code> produces one output per input, and each output depends only on its own input frame and the frame counter <code>on</code>, which runs 0 to N-1 either way. Today zoompan runs to N+8 and trim drops the tail; afterwards it stops at N. The first N frames are byte for byte the same.</span></div>
+  <div class="row"><span>One edge case</span><span>If a source clip genuinely runs out (a segment that ends at the very end of the file), today the zoom freezes on the last rendered frame; after the change the cloned frame keeps zooming. Arguably nicer, but it is a difference, and it can only happen at the tail of a file. Not an issue for text reels, where the padding already sits before zoompan.</span></div>
+  <div class="row"><span>Gain</span><span>On the sample reel: 22 x 9 = 198 extra frames out of 2778 through the framing stage, plus about 77 b-roll frames through the 2x zoompan path. Roughly 5 to 8% of frame work.</span></div>
+</div>
+
+<div class="card">
+  <h3>3. Run the pre-render scans concurrently, and cache the silence map</h3>
+  <p class="meta"><b>Where:</b> <code>engine/render.py</code> <code>build()</code> line 546, <code>silence_map()</code> line 533, <code>scene_cuts()</code> line 517; <code>has_huesaturation()</code> in <code>engine/grade.py</code> line 111, called at <code>render.py</code> 859 and <code>vlog.py</code> 353.</p>
+  <div class="row"><span>Now</span><span>Before anything renders, the engine runs the silence scan (audio decode of the whole file), then the scene-cut scan (a full video decode of the whole source at full resolution: 5,600 frames of 1728x3072 10-bit for the 187 s DJI clip), then spawns <code>ffmpeg -filters</code> to check a filter exists, then checks the colour table cache. All one after another. The scene scan is cached per file; the silence scan is not, so it reruns on every invocation, and a reel typically gets three or more (<code>--cuts</code>, <code>--spot</code>, final, re-renders after feedback).</span></div>
+  <div class="row"><span>Change</span><span>Cache the silence map the same way scene cuts are cached (by inode, size and mtime, in <code>work/_scenes/</code> or a sibling). Start the scene scan and the silence scan as two threads and join them. Cache the <code>has_huesaturation()</code> answer keyed by the ffmpeg binary's path and mtime.</span></div>
+  <div class="row"><span>Why identical</span><span>Same commands, same numbers, just not waited for in sequence.</span></div>
+  <div class="row"><span>Gain</span><span>A few seconds per invocation; on the first run with a long 4K source the two scans overlap instead of adding up.</span></div>
+</div>
+
+<div class="card">
+  <h3>4. Scan b-roll for built-in cuts at index time</h3>
+  <p class="meta"><b>Where:</b> <code>engine/render.py</code> <code>broll_windows()</code> lines 436 to 445 calls <code>scene_cuts()</code> on every b-roll clip; <code>engine/broll.py</code> <code>cmd_index()</code> line 45.</p>
+  <div class="row"><span>Now</span><span>The first time a b-roll clip is placed in a plan, the render build does a full-resolution decode of that whole clip to find scene changes. The library clips are 2160x3840 at 22 to 26 Mbps; the sample reel used 7 of them, about 2 minutes of 4K footage scanned while she waits for the render to start. It is cached after that, so it only bites once per clip, but it bites during a render.</span></div>
+  <div class="row"><span>Change</span><span><code>broll.py index</code> already probes and previews each new or changed clip; add the scene scan there (and run several at once, item 5). The render then finds a warm cache.</span></div>
+  <div class="row"><span>Why identical</span><span>Same scan, same cache file, different moment.</span></div>
+</div>
+
+<div class="card">
+  <h3>5. Three jobs at a time inside the batch tools</h3>
+  <p class="meta"><b>Where:</b> <code>engine/textreel.py</code> <code>cmd_render()</code> line 258; <code>engine/vlog.py</code> <code>cmd_analyse()</code> line 107; <code>engine/render.py</code> <code>_render_windows()</code> line 695; <code>engine/batch.py</code> <code>cmd_cut()</code> line 78.</p>
+  <div class="row"><span>Now</span><span>The skill says to render three videos at a time for sets, but the scripts themselves are strictly sequential: 30 trial reels one after another; 85 vlog clips measured one after another (each is a full 60 fps 4K decode plus 8 seeks for the frame sheet, which is why the skill says "run it in the background"); 20 to 25 cut-preview windows rendered one after another, each followed by its own flash scan; batch parts cut one after another.</span></div>
+  <div class="row"><span>Change</span><span>A small worker pool (three workers, matching the skill's own rule for the four performance cores) in each of those loops. Outputs are collected in order so tables and the joined preview come out unchanged.</span></div>
+  <div class="row"><span>Why identical</span><span>Every job is independent and deterministic; the same command produces the same file whether or not another ffmpeg is running next to it.</span></div>
+  <div class="row"><span>Gain</span><span>Up to about 2.5x wall-clock on those steps. For 30 trial reels or an 85-clip analyse that is minutes.</span></div>
+</div>
+
+<div class="card">
+  <h3>6. Review thumbnails in one ffmpeg call</h3>
+  <p class="meta"><b>Where:</b> <code>engine/review.py</code> <code>thumb()</code> lines 19 to 22.</p>
+  <div class="row"><span>Now</span><span>One ffmpeg process per line. The DJI reel has 41 lines, so 41 processes each open the 1.3 GB file, start a hardware decoder session, seek, decode one picture, and exit.</span></div>
+  <div class="row"><span>Change</span><span>One ffmpeg with 41 <code>-ss</code> inputs and 41 single-frame outputs (<code>-map k:v -frames:v 1</code> each), the same way <code>takes.py</code> and the vlog contact sheet already batch their seeks.</span></div>
+  <div class="row"><span>Why identical</span><span>Same seek, same decode, same scale, same JPEG quality setting, so the same bytes.</span></div>
+</div>
+
+<div class="card">
+  <h3>7. Stop probing the same clip repeatedly in the vlog render</h3>
+  <p class="meta"><b>Where:</b> <code>engine/vlog.py</code> <code>cmd_render()</code> line 376; <code>sdr_filter()</code> in <code>engine/common.py</code> line 105.</p>
+  <div class="row"><span>Now</span><span>Inside the render loop every piece spawns ffprobe to ask whether its clip has audio. The HDR check probes again (that one is cached per path). A vlog plan has 40 to 50 pieces drawn from fewer clips, so the same file is probed several times.</span></div>
+  <div class="row"><span>Change</span><span>Put <code>functools.lru_cache</code> on <code>probe()</code> in <code>common.py</code> (paths do not change during one run), or read <code>has_audio</code> from <code>clips.json</code>, which already stores it.</span></div>
+  <div class="row"><span>Why identical</span><span>Same answer, fewer processes. Saves a few seconds per vlog render.</span></div>
+</div>
+
+<div class="card">
+  <h3>8. Burn graphics and captions in one pass</h3>
+  <p class="meta"><b>Where:</b> <code>engine/render.py</code> lines 885 to 886 (<code>subtitles=graphics.ass, subtitles=captions.ass</code>) and <code>write_ass()</code>.</p>
+  <div class="row"><span>Now</span><span>Two caption renderers are set up and both touch every frame: graphics first, captions drawn on top.</span></div>
+  <div class="row"><span>Change</span><span>Write one .ass file containing both sets of events, with the Caption style on a layer <i>above</i> every graphics layer (for example layer 10; today captions are layer 0 and graphics 1 to 3). The CapCut matte export at lines 924 to 925 must keep its separate graphics file and is unaffected.</span></div>
+  <div class="row"><span>Why identical</span><span>The caption renderer draws its glyph images onto the frame one by one, ordered by layer then by event. Two passes draw graphics then captions; one file with captions on the top layer draws them in exactly the same order, so every blended pixel is the same. Captions and graphics rarely overlap anyway (hook at the top, captions at 70% height).</span></div>
+  <div class="row"><span>Gain</span><span>Small: one per-frame renderer call instead of two, one font load. Worth it because it is trivial.</span></div>
+</div>
+
+<h2>B. Identical to the eye</h2>
+<p class="note">These change bytes at the level of a rounding error or of how the encoder packs the same pictures. The engine already accepted this class of change once (still framings now crop then scale instead of going via the 2x canvas, documented as "identical framing").</p>
+
+<div class="card">
+  <h3>9. Render a single reel in two or three parallel chunks</h3>
+  <p class="meta"><b>Where:</b> <code>engine/render.py</code> <code>main()</code> lines 880 to 889, one ffmpeg for the whole timeline. Helper that already exists: <code>_shift_events()</code> line 685.</p>
+  <div class="row"><span>Now</span><span>One process, one filter graph, one scheduling thread. The two single-threaded stages (zoompan and the caption renderer) cap throughput at roughly real time: a 92 s reel takes about 90 s and leaves most cores idle while the hardware encoder waits. For sets the skill already works around this with three renders at once; a single reel cannot.</span></div>
+  <div class="row"><span>Change</span><span>Split the segment list into two or three chunks at cut boundaries, choosing boundaries where no animated graphic straddles the join (hook fade, stat pop count-up, takeover scale-in; captions in build mode have no animation). Render each chunk's <i>video only</i> in parallel with the same filters and a time-shifted .ass (what <code>_shift_events</code> does for cut previews), join them with <code>-c copy</code>, render the audio once as today (the loudness normaliser needs the whole timeline, and audio is cheap), and mux.</span></div>
+  <div class="row"><span>Why class B</span><span>The pixels handed to the encoder are identical: every segment is self-contained (its own input, its own zoom expression), the grade is per frame, and shifted captions land on the same frames. What differs is the encoded bitstream: a keyframe is forced at each join and the rate control starts fresh per chunk. At 10 Mbps on talking-head footage that is not something a viewer can see, but it is not the same bytes.</span></div>
+  <div class="row"><span>Gain</span><span>Potentially 1.5x to 2.5x on every final render (unmeasured). This is the largest item on the list and also the most work.</span></div>
+</div>
+
+<div class="card">
+  <h3>10. Cut shop batches without re-encoding</h3>
+  <p class="meta"><b>Where:</b> <code>engine/batch.py</code> <code>cmd_cut()</code> lines 58 to 84.</p>
+  <div class="row"><span>Now</span><span>Each shop part is re-encoded with the hardware HEVC encoder at quality 80 (the parts in <code>work/</code> came out at 36 to 49 Mbps). That means decoding and encoding the whole 5-minute 4K batch before the real edit starts, and it puts one extra lossy generation between her camera and the finished reel. The parts also get <code>+faststart</code>, a second rewrite of each 170 MB file, for a feature only uploads need.</span></div>
+  <div class="row"><span>Change</span><span>Copy the streams instead: <code>-c copy -avoid_negative_ts make_zero</code>. The cut snaps to the keyframe before each section start, so a part can begin a second or two early. That is harmless here because every part is transcribed and planned from scratch afterwards and the planner cuts dead air anyway. Drop <code>+faststart</code> on intermediates. A further option that avoids cutting entirely: hard-link the batch file once per part (the compilation workflow already does this) and restrict each plan to that section's words.</span></div>
+  <div class="row"><span>Why class B</span><span>The finished reel is then rendered from the original pixels rather than from a re-encode, so it moves one generation <i>closer</i> to the source. A tiny improvement, not a difference she could see, but strictly a change.</span></div>
+  <div class="row"><span>Gain</span><span>The cut step becomes near-instant instead of minutes.</span></div>
+</div>
+
+<div class="card">
+  <h3>11. Crop before the HDR conversion on still framings</h3>
+  <p class="meta"><b>Where:</b> <code>engine/render.py</code> <code>build()</code> line 563: <code>{sdr_filter}</code> runs before <code>frame_filter()</code>.</p>
+  <div class="row"><span>Now</span><span>For HDR sources the four-pass floating-point conversion runs on the full source frame, then the still-framing path crops a window out of it (83% of the frame at jump zoom 1.1, 69% at punch 1.2, about 32% when a landscape source is cropped to 9:16).</span></div>
+  <div class="row"><span>Change</span><span>For jump, punch and no-zoom segments, put the crop ahead of the conversion so only the kept window is converted. The slow-zoom path scales before it crops, so it is left as is.</span></div>
+  <div class="row"><span>Why class B</span><span>Cropping is pure selection and the conversion is per pixel, so the interior is the same. The conversion upsamples the chroma planes using neighbouring pixels; at the crop border it now sees clamped edges instead of the real neighbours, so the outermost row and column can differ by a rounding step. Nothing visible. Item 1 is the bigger HDR saving; this one stacks on top of it.</span></div>
+</div>
+
+<div class="card">
+  <h3>12. Crop first, then scale, for static vlog shots</h3>
+  <p class="meta"><b>Where:</b> <code>engine/vlog.py</code> <code>video_chain()</code> line 315: <code>scale (cover), crop</code>.</p>
+  <div class="row"><span>Now</span><span>Static shots scale the whole frame to cover 1080x1920 times the zoom, then crop the centre. render.py's still path already does it the other way round (crop the window, scale once).</span></div>
+  <div class="row"><span>Change</span><span>Same trick as render.py: compute the window, crop it from the source, scale once.</span></div>
+  <div class="row"><span>Why class B</span><span>Same sub-pixel class as the change already accepted in render.py: the scaler's sampling phase can shift by a fraction of a source pixel. The gain is small for portrait 9:16 sources at zoom 1.0 (no crop needed) and only matters for the tighter 1.15 framings and landscape clips, so this is low priority.</span></div>
+</div>
+
+<h2>C. Look into before touching</h2>
+
+<div class="card">
+  <h3>13. Map the hidden pixel-format conversions</h3>
+  <p class="meta"><b>Where:</b> the whole video chain in <code>engine/render.py</code> <code>build()</code>; <code>grade_filter()</code> in <code>engine/grade.py</code> line 28.</p>
+  <div class="row"><span>Facts</span><span>The DJI source is 10-bit (<code>yuv420p10le</code>); the hardware decoder returns 10-bit frames. Crop and scale keep whatever they are given. The 22 segments meet at <code>concat</code>, which needs one common format. The colour table filter (<code>lut3d</code>) only accepts RGB formats, so the whole graded timeline is converted to RGB and back. The sharpen filter accepts planar YUV and planar RGB. The b-roll overlay defaults to processing in 8-bit 4:2:0 and converts both of its inputs to that. The encoder wants 8-bit 4:2:0. ffmpeg fills every gap with an automatic conversion filter, and none of those are visible in <code>filter.txt</code>.</span></div>
+  <div class="row"><span>Suggestion</span><span>Run one render with <code>-loglevel verbose</code> and list the lines mentioning <code>auto_scale</code>. Then, and only then, make a conversion explicit where it is provably redundant (two conversions back to back, or a conversion that a neighbouring filter would do anyway). Do <b>not</b> force 8-bit before the colour table: on a 10-bit source the grade is currently applied at higher precision, and dropping to 8-bit first would change the look.</span></div>
+  <div class="row"><span>Observation</span><span>Outside the brief, but worth knowing. The colour table and the sharpen filter share only one format family, planar RGB, so that is likely what ffmpeg negotiates between them. The sharpen filter treats plane 0 as "luma" and planes 1 and 2 as "chroma" (chroma amount is 0, so untouched). In planar RGB, plane 0 is green. If that negotiation is what happens, the clarity step currently sharpens only the green channel. The amount is tiny (0.1), so the visible effect is minimal either way, but it is a look matter to check, not a speed one.</span></div>
+</div>
+
+<div class="card">
+  <h3>14. The zoom filter is the hot spot</h3>
+  <p class="meta"><b>Where:</b> <code>zoompan</code> in <code>engine/render.py</code> lines 151 and 460, <code>engine/vlog.py</code> line 312, <code>engine/textreel.py</code> line 223.</p>
+  <div class="row"><span>Why slow</span><span>It runs on one core (no slice threading), it rebuilds its scaler for every output frame because the crop size changes each frame, and it works from the 2160x3840 canvas (8.3 million pixels in, 2 million out, bicubic). Every slow-zoom segment, every b-roll shot and every text-reel shot goes through it. The 2x canvas is deliberate (half-pixel steps keep the push smooth), so the input size cannot shrink without changing the motion.</span></div>
+  <div class="row"><span>Possible stand-in</span><span>The same maths, an integer crop followed by a bicubic scale, can be written as <code>crop</code> with time expressions plus <code>scale</code>, and the scale filter is slice-threaded. In theory the same pixels; in practice there are two places it may not be: how the crop position rounds on the chroma planes at odd offsets, and the scaler flags. It needs a frame-by-frame comparison on a real reel before anyone adopts it. Not recommended blind.</span></div>
+</div>
+
+<h2>D. Previews only</h2>
+
+<div class="card">
+  <h3>15. Half-size drafts, and fold the flash scan into the preview render</h3>
+  <p class="meta"><b>Where:</b> <code>engine/render.py</code> <code>--draft</code> (lines 880 to 889) and <code>_render_windows()</code> lines 738 to 746.</p>
+  <div class="row"><span>Drafts</span><span>A draft currently runs the full 1080x1920 chain and only saves on the encoder bitrate, which is the cheap part. Cut previews already render at half size for about 4x less filter work; drafts could use the same path. Finals untouched.</span></div>
+  <div class="row"><span>Flash scan</span><span>Each cut-preview window is encoded, then decoded again by a second ffmpeg for the scene-change scan. A <code>split</code> in the same filter graph could feed the scan branch from the pre-encode frames and write it to <code>-f null</code>. The preview video is unchanged; the detector would see cleaner frames than the decoded preview, so the scan input differs slightly. Threshold 8 is coarse, but it is a different input to a check, so flagging it.</span></div>
+</div>
+
+<h2>Already good, leave alone</h2>
+<ul>
+  <li>Hardware decode on every video input through <code>vin()</code>, with the automatic software retry.</li>
+  <li>The grade baked into one 3D colour table (one pass instead of five), rebuilt only when <code>grade.json</code> changes.</li>
+  <li>Still framings crop the exact window and scale once.</li>
+  <li>Each segment reads only its own stretch of the source (<code>-ss</code>/<code>-t</code> per input), so unused footage is never decoded.</li>
+  <li>The b-roll 2x "scale" is a no-op on the library clips, which are already 2160x3840; the scale filter passes frames through when nothing changes.</li>
+  <li>Scene cuts cached per file identity; music analysis cached per track.</li>
+  <li>Shop intermediates stay HEVC and never get uploaded; finals are hardware h.264 with the quality priority on.</li>
+  <li>Three renders at a time for sets, per the skill (item 5 just moves that rule inside the scripts).</li>
+</ul>
+
+<h2>How to check any of these safely</h2>
+<p>For an A-class change, render the same plan before and after to a lossless intermediate and compare frame hashes; the lists should match line for line:</p>
+<pre><code>ffmpeg -i before.mp4 -map 0:v -f framemd5 before.md5
+ffmpeg -i after.mp4  -map 0:v -f framemd5 after.md5
+diff before.md5 after.md5</code></pre>
+<p>That only works when both sides were encoded losslessly (for example <code>-c:v ffv1</code> on a short test plan), because the hardware encoder is not guaranteed to produce the same bytes twice. For B-class changes, a PSNR comparison is the right tool: anything above about 50 dB is below what the h.264 encode itself does to the picture.</p>
+<pre><code>ffmpeg -i before.mp4 -i after.mp4 -lavfi psnr -f null -</code></pre>
+<p>Nothing in this report has been run. The numbers quoted as measurements come from the skill's own notes and from probing the files already in the folder.</p>
+
+</main>
+</body>
+</html>

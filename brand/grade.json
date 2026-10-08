@@ -1,0 +1,33 @@
+{
+  "enabled": true,
+  "_note": "same numbers you use in capcut. ffmpeg doesn't map 1:1, so tweak the strength values at the bottom if it looks too strong or too weak",
+  "temp": -6,
+  "tint": 6,
+  "saturation": 10,
+  "whites": 4,
+  "blacks": -2,
+  "clarity": 2,
+  "hsl": {
+    "red": {
+      "hue": 10,
+      "saturation": 0,
+      "brightness": 0
+    },
+    "yellow": {
+      "hue": -60,
+      "saturation": 0,
+      "brightness": 0
+    },
+    "blue": {
+      "hue": 0,
+      "saturation": -100,
+      "brightness": -40
+    }
+  },
+  "strength": {
+    "temp_tint": 1.0,
+    "hsl_hue": 1.0,
+    "hsl_sat_bright": 1.0
+  },
+  "neutral_blacks": true
+}
