@@ -322,9 +322,11 @@ class Scans(unittest.TestCase):
 
     def test_ffmpeg_filter_check_is_remembered(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(grade, "WORK_DIR", Path(tmp)):
+            ffmpeg = Path(tmp) / "ffmpeg"                    # a stand-in: the logic runners have no ffmpeg
+            ffmpeg.write_bytes(b"")
             grade.has_huesaturation.cache_clear()
             fake = mock.MagicMock(return_value=mock.Mock(stdout=" ... huesaturation  V->V ..."))
-            with mock.patch("subprocess.run", fake):
+            with mock.patch("subprocess.run", fake), mock.patch.object(grade, "find_bin", lambda name: str(ffmpeg)):
                 self.assertTrue(grade.has_huesaturation())
                 grade.has_huesaturation.cache_clear()
                 self.assertTrue(grade.has_huesaturation())            # from work/_grade/filters.json
