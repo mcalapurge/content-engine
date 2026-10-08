@@ -12,6 +12,66 @@ look, colour grade and b-roll.
 This is a tool folder rather than a code project that changes often: Claude is told not to commit,
 push or open pull requests unless asked.
 
+## using the skills with brands
+
+Every job is for one brand. Claude works out which one from what you say, the slash command's first
+argument, or the brand saved with an earlier job. With only one brand set up you never need to name
+it; with several, name it, or Claude will ask. Claude then reads that brand's guide
+(`brands/<brand>/brand.md`), effects and look before it edits anything, and only uses that brand's
+b-roll, style and colour grade.
+
+### slash commands
+
+The brand always comes first, then the optional bits.
+
+| command | what it makes | example |
+|---|---|---|
+| `/content-talking-head <brand> [folder] [notes]` | a talking-to-camera reel from the newest clip in `inputs/talking-head/` (or that subfolder) | `/content-talking-head mia` <br> `/content-talking-head beth october punch in on the price` |
+| `/content-tts <brand> [folder] [product] [how many]` | tiktok shop videos split from a batch take or compilation in `inputs/shop/` | `/content-tts beth halara-batch "Halara Wide Leg Trousers" 5` |
+| `/content-vlog <brand> [folder] [track] [no grade]` | a short b-roll / vlog edit from a folder in `inputs/vlog/` | `/content-vlog mia lisbon-trip assets/music/sunny.mp3` |
+| `/content-trial-reels <brand> [folder]` | instagram trial reels (text over b-roll) from a spreadsheet in `inputs/trial/` | `/content-trial-reels beth october` |
+
+The `video-pipeline` skill is the shared core behind all four. It loads by itself for any editing
+request, so you don't call it directly.
+
+### or just ask in plain words
+
+```
+i have a new reel for mia
+edit beth's shop batch, it's the halara trousers, 4 videos
+edit mia's vlog lisbon-trip with the sunny track
+make beth's trial reels from the october folder
+index mia's b-roll
+change beth's grade, it's looking too warm
+add this to mia's effects library: (screenshot) call it "pink flash"
+what's working in this reel: (link)   ← then: "what could mia borrow from it?"
+```
+
+### adding a brand
+
+```
+set up a new brand for mia
+```
+
+Claude runs `python -m engine brand new mia --style <editorial|playful|butter>`, which copies
+`brands/_template/` to `brands/mia/`. Then it interviews you one question at a time and fills in
+`brands/mia/brand.md`, sets her fonts and colours in `style.json`, takes her capcut grade numbers into
+`grade.json`, and indexes her b-roll once you've copied it into `brands/mia/broll/`. Check what's
+set up with `python -m engine brand list` (or ask "which brands do we have?").
+
+### organising footage
+
+Input folders are shared by every brand. To keep clients apart, give each brand (or each job) its
+own subfolder and name it in the command, eg `inputs/talking-head/mia/` with
+`/content-talking-head mia mia`. Claude never changes, moves or deletes anything in `inputs/`.
+
+### brand-specific variations
+
+A brand can have extra looks in `brands/<brand>/styles/`, eg `shop.json` with captions placed
+higher for try-on videos. Ask for it by name ("use beth's shop style") or Claude picks it when the
+brand guide says to. Changes you try on a single video stay on that video until you say "make that
+the default", and then Claude updates that brand's files only.
+
 ## layout
 
 ```
