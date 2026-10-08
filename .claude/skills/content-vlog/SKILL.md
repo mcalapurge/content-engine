@@ -1,31 +1,26 @@
 ---
 name: content-vlog
-description: Cut a folder of b-roll / vlog clips into a ~30s edit for Beth's @beth.ejm accounts (Instagram and TikTok). Slash command only.
+description: Cut a folder of b-roll / vlog clips into a short edit (Instagram + TikTok) for a brand in brands/. Slash command only.
 disable-model-invocation: true
-argument-hint: "[folder in input_vlog/] [music track] [no grade]"
+argument-hint: "<brand> [folder in inputs/vlog/] [music track] [no grade]"
 ---
 
-# /content-vlog - @beth.ejm (Instagram + TikTok)
+# /content-vlog - b-roll / vlog edit (Instagram + TikTok)
 
-Arguments: `$ARGUMENTS` (a folder inside `input_vlog/`, optionally a track in `music/` and "no grade").
+Arguments: `$ARGUMENTS` (the brand, a folder inside `inputs/vlog/`, optionally a track in `assets/music/` and "no grade").
 
-**Which clips**: run `engine/inputs.py input_vlog [folder]`. Folder given → every clip in it. `ASK` → ask her which folder. No folders → every clip in `input_vlog/` (then analyse / plan / render `input_vlog` itself).
+**Which brand**: the brand named in the arguments or request (a folder in `brands/`). Not given and more than one brand → ask. Never guess.
 
-**First load the `video-pipeline` skill** and read `brand/brand.md`, `styles/beth.json`. Follow `video-pipeline/references/broll-montage.md`, then `references/checks.md`. Not for the TikTok Shop account.
+**Which clips**: run `python -m engine inputs inputs/vlog [folder]`. Folder given → every clip in it. `ASK` → ask which folder. No folders → every clip in `inputs/vlog/` (then analyse / plan / render `inputs/vlog` itself).
 
-## what she wants
+**First load the `video-pipeline` skill**, then read `brands/<brand>/brand.md` (especially its vlog / b-roll edit defaults, feedback history), `brands/<brand>/effects.md`. Follow `video-pipeline/references/broll-montage.md`, then `references/checks.md`.
 
-- a ~30s edit with no talking; she adds a voiceover (and maybe her own music) later
-- very fast start: teaser of 4-frame snaps from ~16 different clips (~2s), then short opening shots
-- the most engaging order (a little story, never the same scene twice in a row, satisfying ending), not chronological
-- NO transitions (no flash, whip, fade), NO speed changes; lots of jump cuts (same clip, skip ahead, tighter frame) mixed with slow zooms; freeze frames are ok
-- keep the natural sound (check it isn't a silent track)
-- music only if she names a track: then cut on the beat, and she also gets a `_no_music` version
-- grade: ask if she didn't say (last time: "they don't need colour grading")
+All styling (length, teaser, transitions, speed, jump cuts, sound, music, grade) comes from the brand's files. This skill only sets the order of work.
 
 ## steps
 
-1. `vlog.py analyse` → look at every frame sheet → write a description per clip
-2. build `work/vlog-<folder>/plan.json` by eye (or `vlog.py plan` as a start) → `vlog.py table`
+1. `vlog analyse` → look at every frame sheet → write a description per clip
+2. build `work/vlog-<folder>/plan.json` by eye (or `vlog plan --brand <brand>` as a start) following the brand's vlog defaults → `vlog table`
 3. send the storyboard + a section-by-section summary → wait for "go"
-4. `vlog.py render` (`--no-grade` if asked) → checks → send it
+4. `vlog render` (graded with the brand's grade; `--no-grade` if asked or the brand says so) → checks → send it
+5. grade not mentioned and the brand guide doesn't settle it → ask

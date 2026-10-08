@@ -1,21 +1,21 @@
 # checks before handing anything over + known pitfalls
 
-You can't watch or hear video, so measure. Run these after every render and fix anything they find before telling her it's done. Prefix with `eval "$(/opt/homebrew/bin/brew shellenv zsh)" && `.
+You can't watch or hear video, so measure. Run these after every render and fix anything they find before saying it's done. On a mac, prefix with `eval "$(/opt/homebrew/bin/brew shellenv zsh)" && ` if ffmpeg isn't found.
 
 ## 1. engine qc (talking head / shop)
 
 ```
-.venv/bin/python engine/qc.py <clip-or-part-path>
+.venv/bin/python -m engine qc <clip-or-part-path>
 ```
-Checks format, length, dead air, loudness, caption coverage, hook, grade, b-roll, sfx, leftover fillers, uncertain words. FAIL = fix. Expected warnings: "no hook text" on `--no-text` videos; "caption accuracy" lists low-confidence words (check them, say they read fine or fix them).
+Checks format, length, dead air, loudness, caption coverage, hook, grade, b-roll, sfx, leftover fillers, uncertain words, text contrast (against the style the video was rendered with). FAIL = fix. Expected warnings: "no hook text" on `--no-text` videos; "caption accuracy" lists low-confidence words (check them, say they read fine or fix them).
 
 ## 1b. text contrast (anything with on-screen graphics)
 
-Text on a solid background (hook box, step badge, takeover cards) needs 4.5:1 contrast or more (wcag AA). `qc.py` checks it ("text contrast"), `render.py` won't render below it, and `.venv/bin/python engine/contrast.py <style>` lists every pair in a style. Style keys: `badge_text_colour` / `badge_bg`, `takeover_text_colour` / `takeover_bg`, `hook_text_colour` / `hook_box_colour`. Her pink #FAEAF0 only works with dark text (#1E1E1E = 14.4:1); white on it is 1.2:1. Text straight on the video isn't checked.
+Text on a solid background (hook box, step badge, takeover cards) needs 4.5:1 contrast or more (wcag AA). `qc.py` checks it ("text contrast"), `render.py` won't render below it, and `.venv/bin/python -m engine contrast --brand <brand> [--style <style>]` lists every pair in a style. Style keys: `badge_text_colour` / `badge_bg`, `takeover_text_colour` / `takeover_bg`, `hook_text_colour` / `hook_box_colour`. Pale accent colours only work with dark text (eg #1E1E1E on a pale pink = 14.4:1; white on it can be 1.2:1). Text straight on the video isn't checked.
 
 ## 2. cut preview (talking head / shop): check cuts BEFORE the full render
 
-`.venv/bin/python engine/render.py <clip> --cuts` renders just the cuts (half size), flash-scans each, and prints clean / FLASH per cut. `--only 3,7` re-checks specific cuts. Much faster than rendering the whole video to find one bad cut. Still run the full flash scan below on the final file.
+`.venv/bin/python -m engine render <clip> --cuts` renders just the cuts (half size), flash-scans each, and prints clean / FLASH per cut. `--only 3,7` re-checks specific cuts. Much faster than rendering the whole video to find one bad cut. Still run the full flash scan below on the final file.
 
 ## 2b. flash scan on a finished file (catches "glitchy" cuts) - every video type
 
@@ -38,7 +38,7 @@ Contact sheet of moments that matter (hook at ~0.5s, each b-roll window from `wo
 ffmpeg -v error -y -ss <sec> -i output/<file>.mp4 -frames:v 1 -vf scale=240:-2 <scratch>/f1.png
 ffmpeg -v error -y -i f1.png -i f2.png -i f3.png -filter_complex "[0:v][1:v][2:v]hstack=inputs=3[o]" -map "[o]" sheet.png
 ```
-(hstack/vstack need `inputs=N` and an explicit `-map "[o]"`.) Then Read the image. Look for: text readable and placed right, captions not covering the product, b-roll is full screen, nothing covering her face, right clip at the right moment.
+(hstack/vstack need `inputs=N` and an explicit `-map "[o]"`.) Then Read the image. Look for: text readable and placed right, captions not covering the product, b-roll shown the way the brand wants (full screen / pip), nothing covering their face, right clip at the right moment.
 
 ## 4. sound
 
@@ -55,7 +55,7 @@ ffmpeg -hide_banner -i output/<file>.mp4 -vf "freezedetect=n=0.002:d=0.6" -an -f
 ffprobe -v error -show_entries format=duration -of csv=p=0 output/<file>.mp4
 ```
 
-## 6. colour (when she says the grade looks off)
+## 6. colour (when they say the grade looks off)
 
 Sample the average colour of something that should be neutral, before vs after:
 ```

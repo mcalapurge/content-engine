@@ -14,17 +14,25 @@
 2. open claude code and point it at this folder
 3. type: **set up my editing engine**
 4. say yes when it asks to install things. on a mac it may ask for your password. on windows you might need to close and reopen claude code once
-5. it interviews you about your brand, how you film and how you like captions. this is what makes every edit come out on-brand
-6. copy your b-roll into the `broll` folder (subfolders like `broll/hairburst` help), then say **index my b-roll**. claude looks at every clip and writes a description so it knows when to use it
+5. it sets up your first brand and interviews you about it: how you film and how you like captions. this is what makes every edit come out on-brand
+6. copy your b-roll into your brand's folder, `brands/<your name>/broll` (subfolders like `brands/<your name>/broll/hairburst` help), then say **index my b-roll**. claude looks at every clip and writes a description so it knows when to use it
 7. it shows you a before/after of your colour grade on a test clip so you can check it matches your capcut look
 
 ## every reel after that
 
-1. film on your phone (say lines as many times as you like), copy it into `input`
-2. say: **i have a new reel**
+1. film on your phone (say lines as many times as you like), copy it into `inputs/talking-head`
+2. say: **i have a new reel** (with more than one brand, say whose it is: **i have a new reel for mia**)
 3. it cuts your ums and dead air, picks your best takes, and drops in b-roll where it fits
 4. a review page opens in your browser: every line with a thumbnail, how long it took to say, and dropdowns for zoom, b-roll and sound. make changes, hit **copy instructions**, paste into claude
 5. say **go**. it builds the reel with your grade, captions, hook, zooms, b-roll, sound effects and music, checks its own work, and saves it in `output`
+
+## more than one brand (clients)
+
+every brand gets its own folder in `brands/` with its own brand guide, look, colour grade and b-roll.
+
+- say **set up a new brand for mia**. claude makes `brands/mia/` and interviews you about that brand
+- then say whose video it is: **edit mia's reel**, or `/content-talking-head mia`
+- each brand only ever uses its own b-roll, captions style and grade
 
 ## sound
 
@@ -51,6 +59,8 @@ paste a reel link and say **what's working in this reel**. it downloads it, maps
 ## things you can say
 
 - i have a new reel
+- set up a new brand for mia
+- i have a new reel for mia
 - make line 3 a full screen takeover, split into two
 - put the gummies clip on line 6, picture in picture
 - punch in on the stat

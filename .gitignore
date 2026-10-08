@@ -18,19 +18,21 @@ __pycache__/
 *.mkv
 *.webm
 
-# raw footage folders: keep the readme, ignore everything else (subfolders too)
+# raw footage: keep the folders + readmes, ignore everything else (subfolders too)
+/inputs/*/*
+!/inputs/*/README.txt
+!/inputs/*/.gitkeep
+
+# old layout (before inputs/ existed). delete these folders once their clips are moved:
+# python scripts/migrate_layout.py
 /input/*
 !/input/README.txt
-!/input/.gitkeep
 /input_shop/*
 !/input_shop/README.txt
-!/input_shop/.gitkeep
 /input_vlog/*
 !/input_vlog/README.txt
-!/input_vlog/.gitkeep
 /input_trial/*
 !/input_trial/README.txt
-!/input_trial/.gitkeep
 
 # generated work files and other people's reels
 /work/*
@@ -47,11 +49,11 @@ __pycache__/
 !/output/trial/captions.md
 
 # music (big + licensing). sfx are small, so they are tracked
-/music/*
-!/music/README.txt
-!/music/.gitkeep
+/assets/music/*
+!/assets/music/README.txt
+!/assets/music/.gitkeep
 
-# b-roll previews are rebuilt by: engine/broll.py index
+# b-roll previews are rebuilt by: python -m engine broll index --brand <brand>
 # (library.json is tracked: it holds hand-written descriptions the script can't recreate)
-/broll/_previews/*
-!/broll/_previews/.gitkeep
+/brands/*/broll/_previews/*
+!/brands/*/broll/_previews/.gitkeep
