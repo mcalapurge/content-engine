@@ -110,7 +110,7 @@ def make_clip(path, secs, size="540x960", pattern="testsrc2", tone=300, audio=Tr
 
 def fake_transcript(work_dir, video, text, size=(540, 960), duration=None, word_secs=0.22, step=0.27, pause=1.2,
                     unsure=()):
-    """write work/<clip>/transcript.json as if whisper had heard `text`. "|" in the text = a pause."""
+    """write work/<clip>/transcript.json as if the transcriber had heard `text`. "|" in the text = a pause."""
     words, t = [], 0.2
     for token in text.split():
         if token == "|":

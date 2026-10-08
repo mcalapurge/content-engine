@@ -6,10 +6,10 @@ Run from the project root (on a mac, prefix with `eval "$(/opt/homebrew/bin/brew
 
 ```
 .venv/bin/python -m engine transcribe inputs/talking-head/<clip>            # no name = newest file in inputs/talking-head/
-.venv/bin/python -m engine transcribe <clip> --model medium   # much more accurate, slower. use for batches, compilations, or when small mishears a lot
+.venv/bin/python -m engine transcribe <clip> --model medium   # the older whisper instead (needs faster-whisper): only to compare when parakeet struggles
 ```
 
-Writes `work/<clip>/transcript.json` (`words`: text, start, end, prob). iPhone HDR footage is handled automatically everywhere (converted to normal colour), nothing to do.
+Writes `work/<clip>/transcript.json` (`words`: text, start, end, prob). Parakeet times where each word starts; a word's end is where the audio goes quiet after it (a pause) or where the next word starts. iPhone HDR footage is handled automatically everywhere (converted to normal colour), nothing to do.
 
 ## 2. rough cut
 

@@ -78,7 +78,7 @@ render.py does this itself (cached in `work/_scenes/`) and keeps shots off these
 - the caption renderer ignores letter spacing set in a style line; spacing must go inline (`\fsp`). the engine does this
 - iPhone HDR (HLG) clips look flat/grey without conversion; `sdr_filter` in common.py handles it everywhere (zscale primaries in float). don't tone-map HLG, it blows out skin
 - clips exported from editing apps often have silent audio tracks
-- Whisper's first-word start is often early and its last-word end often short; render.py snaps to the real audio
+- word timings are close but not exact (a word's end is read from where the audio goes quiet); render.py snaps cuts to the real audio
 - `broll.py match` writes suggestions straight into plan.json; review and remove what doesn't fit
 - `vlog.py analyse` overwrites clips.json descriptions
 - zsh doesn't word-split `$var` in for loops; file names have spaces; use python or quoted explicit lists

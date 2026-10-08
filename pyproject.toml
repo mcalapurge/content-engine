@@ -2,10 +2,10 @@
 name = "reels-engine"
 version = "1.0.0"
 description = "Agentic reels editing engine: Claude runs it to cut, caption, grade and check short videos for one or more brands."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 # keep in step with requirements.txt (the setup steps install from that file)
 dependencies = [
-    "faster-whisper>=1.0.0",
+    "onnx-asr[cpu,hub]>=0.12",
     "yt-dlp",
 ]
 

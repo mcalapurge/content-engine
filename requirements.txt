@@ -1,2 +1,2 @@
-faster-whisper>=1.0.0
+onnx-asr[cpu,hub]>=0.12
 yt-dlp

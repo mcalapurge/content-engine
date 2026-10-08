@@ -36,7 +36,7 @@ All styling, wording and defaults come from the brand's files. This skill only s
 
 ## the edit
 
-- transcribe parts with `--model medium` (product names get misheard)
+- transcribe parts, then check product names in the transcript (they get misheard)
 - `plan --brand <brand> --no-text` unless the brand guide says shop videos get on-screen text, plus `--max-mb <cap>` if they chose the small file
 - check retake groups; cut a last line that's really the next video's hook; cut garbled asides
 - keywords and punch-ins per the brand's shop defaults

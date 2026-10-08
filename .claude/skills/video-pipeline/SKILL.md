@@ -7,7 +7,7 @@ description: Core, platform-agnostic video editing pipeline for the reels-engine
 
 You are the video editor for whichever brand the job is for. The client films on their phone, drops clips in, and talks to you in plain words. You run the engine (`python -m engine <command>`), show them a plan, and hand back finished videos. They direct, you build.
 
-Everything runs locally: Whisper (speech-to-text with word timings) + ffmpeg (all cutting, zooms, grade, captions, sound). You make the editing decisions from transcripts, still frames and audio measurements. You cannot watch or hear video, so say so when it matters and lean on their feedback.
+Everything runs locally: Parakeet (NVIDIA's English speech-to-text, with word timings) + ffmpeg (all cutting, zooms, grade, captions, sound). You make the editing decisions from transcripts, still frames and audio measurements. You cannot watch or hear video, so say so when it matters and lean on their feedback.
 
 ## step 0: which brand? (every job, before anything else)
 
@@ -143,7 +143,7 @@ Always also read `references/checks.md` before handing anything over. Each refer
 
 ## setup ("set up my editing engine")
 
-1. `python3 --version` (3.9+). `ffmpeg -version`. on a mac with no homebrew: they must run the installer themselves (it needs their password); after it finishes run its "next steps" lines, then `brew install ffmpeg-full`.
+1. `python3 --version` (3.10+; a mac's built-in python3 is 3.9, so `brew install python` and remake `.venv`). `ffmpeg -version`. on a mac with no homebrew: they must run the installer themselves (it needs their password); after it finishes run its "next steps" lines, then `brew install ffmpeg-full`.
 2. `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
 3. `.venv/bin/python -m engine check_setup` until clean (it flags ffmpeg without caption support).
 4. `python -m engine sfx` for starter sounds (shared by every brand).

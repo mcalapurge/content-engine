@@ -23,9 +23,9 @@ Source files live in `inputs/shop/` (read only). Read the brand's brand.md first
    .venv/bin/python -m engine batch cut inputs/shop/<video>
    ```
    Saves `work/<video>/parts/<video>_01.mp4` ..., three at a time. The picture is copied, not re-encoded (instant, and the edit works from the camera's own frames), so a part starts on the keyframe in the pause before its hook, a moment early; the planner cuts that pause anyway. A part whose keyframe would reach back into the previous video's speech is re-encoded exactly instead (the printout says which). Original untouched.
-3. **each part**: follow talking-head.md with the part path. Use `--model medium` to transcribe (the small model mishears product names badly). Loop:
+3. **each part**: follow talking-head.md with the part path. Product names get misheard, so check them in the transcript. Loop:
    ```
-   for n in 01 02 03; do P=work/<video>/parts/<video>_$n.mp4; .venv/bin/python -m engine transcribe $P --model medium; .venv/bin/python -m engine plan $P --brand <brand> --no-text; done
+   for n in 01 02 03; do P=work/<video>/parts/<video>_$n.mp4; .venv/bin/python -m engine transcribe $P; .venv/bin/python -m engine plan $P --brand <brand> --no-text; done
    ```
    If they chose the small upload file (the tiktok shop size question, asked every job), add `--max-mb <cap>` to each `plan` (eg `--max-mb 10`): every render of that part is then h.265 under the cap, and qc checks it.
    Each part gets its own work folder `work/<video>_<n>/`. Each render lands in its own folder in `output/<brand>/shop/`.
@@ -33,7 +33,7 @@ Source files live in `inputs/shop/` (read only). Read the brand's brand.md first
 
 ## B. compilation (several videos built from one file)
 
-1. transcribe the whole file with `--model medium`, print the transcript with gaps, and find the clip boundaries:
+1. transcribe the whole file, print the transcript with gaps, and find the clip boundaries:
    ```
    ffmpeg -hide_banner -i inputs/shop/<file> -vf "scale=270:-2,scdet=threshold=8,metadata=mode=print:key=lavfi.scd.time" -an -f null - 2>&1 | grep -o "lavfi.scd.time=[0-9.]*"
    ```

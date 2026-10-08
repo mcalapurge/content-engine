@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       transcribe:
-        description: "also run the real speech-to-text test (downloads a whisper model)"
+        description: "also run the real speech-to-text test (downloads parakeet)"
         type: boolean
         default: false
   schedule:
@@ -38,7 +38,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.9", "3.13"]
+        python: ["3.10", "3.13"]
     env:
       REELS_SKIP_MEDIA: "1"
       PYTHONIOENCODING: utf-8

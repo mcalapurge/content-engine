@@ -74,7 +74,7 @@ run the engine from the project root with the venv python:
 
 ## "set up my editing engine"
 
-1. check python 3.9+ (`python3 --version` / `py --version`). missing: mac `brew install python`, windows `winget install Python.Python.3.12`.
+1. check python 3.10+ (`python3 --version` / `py --version`). missing or older (a mac's built-in python3 is 3.9): mac `brew install python`, windows `winget install Python.Python.3.12`. an existing `.venv` made with an older python has to be deleted and made again (step 3).
 2. check ffmpeg (`ffmpeg -version`). missing: mac `brew install ffmpeg` (homebrew from brew.sh first if needed), windows `winget install Gyan.FFmpeg`, then restart the terminal / claude code.
 3. venv + install: `python3 -m venv .venv` then `.venv/bin/pip install -r requirements.txt` (windows: `py -m venv .venv`, `.venv\Scripts\pip install -r requirements.txt`).
 4. run `python -m engine check_setup`, fix anything MISSING, rerun until clean.
@@ -95,7 +95,7 @@ follow the `content-new-brand` skill (`/content-new-brand <name> [file]`). in sh
 ## "i have a new reel" / "edit this reel" (the main loop)
 
 1. **brand**: which brand is it for? read its brand.md, effects.md, style.json.
-2. **transcribe**: `python -m engine transcribe [clip]` (no name = newest file in inputs/talking-head/).
+2. **transcribe**: `python -m engine transcribe [clip]` (no name = newest file in inputs/talking-head/). it uses parakeet, nvidia's english speech model, on their computer (downloads once, about 700MB). `--model small` / `medium` switches back to the older whisper, only if `faster-whisper` is installed.
 3. **rough cut**: `python -m engine plan [clip] --brand <brand>` (`--style <name>` for one of the brand's variations). it groups repeated takes, cuts fillers, dead air and earlier takes, and assigns motion + treatments. then apply the brand's talking-head defaults from its brand.md.
 4. **best takes**: if the table says lines were filmed more than once, run `python -m engine takes [clip]` and look at the frame images in `work/<clip>/takes/` (3 frames per take). pick the best take of each line using the take rules in the brand's brand.md, plus clarity and words/sec from the printout. swap `keep` in plan.json so the winning take is kept and the others are cut. say in one line why you picked each.
 5. **b-roll**: run `python -m engine broll match [clip]` for keyword suggestions from that brand's library, then use your own judgement on top: read each kept line and `brands/<brand>/broll/library.json` descriptions and place b-roll where it genuinely shows what they're talking about (products for brand deals, the action they describe). keep the hook on camera, max ~40% of lines (unless the brand says otherwise), don't reuse a clip in one reel. set `"broll": {"file": "brands/<brand>/broll/...", "start": 0, "mode": "full"}` (or `"pip"` for picture in picture, if the brand uses it). `start` = seconds into the b-roll clip to start from (pick the best moment from its preview).

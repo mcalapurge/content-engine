@@ -29,7 +29,7 @@ def ffmpeg_major(version_line):
 def main():
     print(f"\nreels engine setup check ({platform.system()} {platform.machine()})\n")
 
-    line(sys.version_info >= (3, 9), "python", platform.python_version() + (" (need 3.9+)" if sys.version_info < (3, 9) else ""))
+    line(sys.version_info >= (3, 10), "python", platform.python_version() + (" (need 3.10+)" if sys.version_info < (3, 10) else ""))
 
     ff = shutil.which("ffmpeg")
     if ff:
@@ -50,10 +50,10 @@ def main():
                   "(brew upgrade ffmpeg / winget upgrade Gyan.FFmpeg)")
 
     try:
-        import faster_whisper  # noqa
-        line(True, "faster-whisper", "installed")
+        import onnx_asr  # noqa
+        line(True, "parakeet (onnx-asr)", "installed. the speech model downloads on the first transcribe")
     except ImportError:
-        line(False, "faster-whisper", "run: pip install -r requirements.txt")
+        line(False, "parakeet (onnx-asr)", "run: pip install -r requirements.txt")
 
     try:
         import yt_dlp  # noqa

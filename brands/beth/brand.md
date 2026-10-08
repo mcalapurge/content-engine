@@ -97,7 +97,7 @@ it fills this in during the brand interview. edit it any time, or say "update be
 - same look as her other videos: her captions, pink keywords, her grade, quiet click on frame 1
 - ask for the product name once (spelling) and add it to `keep_caps`, plus words like UK / XL
 - compilations: ask if it was already colour graded (yes = `--no-grade`, no `"grade": true` on b-roll)
-- transcribe with `--model medium`: product names get misheard (eg "these two love trousers" = "these Halara trousers", "white calf" = "wide-calf", "buried amount" = "varied amount")
+- product names get misheard, check them in every transcript (eg "these two love trousers" = "these Halara trousers", "white calf" = "wide-calf", "buried amount" = "varied amount")
 - merge sizes like 5'2" into one caption word
 - keywords from the selling points (comfortable, stretch, padded, zip, XL, UK 16, 17-inch...)
 - punch-in on the sizing / proof / verdict line

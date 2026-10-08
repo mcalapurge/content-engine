@@ -39,7 +39,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("source", help="reel link or a video file")
     ap.add_argument("--browser", default=None, help="chrome / safari / edge / firefox")
-    ap.add_argument("--model", default="small")
+    ap.add_argument("--model", default="parakeet", help="parakeet, or a whisper size (needs faster-whisper)")
     args = ap.parse_args()
 
     if re.match(r"https?://", args.source):
