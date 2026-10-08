@@ -24,8 +24,21 @@ def die(msg):
     sys.exit(1)
 
 
+# homebrew's full ffmpeg (with captions) isn't put on the PATH, so look for it first
+BREW_FFMPEG = [Path(prefix) / "opt" / "ffmpeg-full" / "bin" for prefix in ("/opt/homebrew", "/usr/local")]
+
+
+def which_bin(name):
+    """where a tool is, or None. ffmpeg and ffprobe come from homebrew's ffmpeg-full when it's installed."""
+    if name in ("ffmpeg", "ffprobe"):
+        for folder in BREW_FFMPEG:
+            if (folder / name).exists():
+                return str(folder / name)
+    return shutil.which(name)
+
+
 def find_bin(name):
-    path = shutil.which(name)
+    path = which_bin(name)
     if not path:
         die(f"couldn't find '{name}'. run: python -m engine check_setup")
     return path

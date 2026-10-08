@@ -32,6 +32,7 @@ The brand always comes first, then the optional bits.
 | `/content-tts <brand> [folder] [product] [how many] [max size]` | tiktok shop videos split from a batch take or compilation in `inputs/shop/`. asks every time: the normal file, or a small h.265 one under 10MB (or the size you name) for uploading | `/content-tts beth halara-batch "Halara Wide Leg Trousers" 5` <br> `/content-tts beth halara-batch "Halara Wide Leg Trousers" 5 10mb` |
 | `/content-vlog <brand> [folder] [track] [no grade]` | a short b-roll / vlog edit from a folder in `inputs/vlog/` | `/content-vlog mia lisbon-trip assets/music/sunny.mp3` |
 | `/content-trial-reels <brand> [folder]` | instagram trial reels (text over b-roll) from a spreadsheet in `inputs/trial/` | `/content-trial-reels beth october` |
+| `/content-setup` | installs everything the engine needs (on a mac: runs `scripts/setup_mac.sh`), or repairs a broken install | `/content-setup` |
 | `/content-new-brand <name> [file]` | a new brand (guide, look, grade, effects) generated from a brand guide file in `inputs/brand-guides/` | `/content-new-brand mia mia-brand-book.pdf` |
 
 The `video-pipeline` skill is the shared core behind all of them. It loads by itself for any editing
@@ -102,7 +103,7 @@ references/            other people's reels broken down
 work/                  per-job working files (git-ignored)
 output/                finished videos by brand/type/date (git-ignored)
 docs/                  engine notes (render audit)
-scripts/               one-off maintenance (migrate_layout.py)
+scripts/               setup_mac.sh (one-command mac install), migrate_layout.py (one-off)
 tests/                 logic, content and render tests + golden copies of render recipes
 ```
 
@@ -126,7 +127,8 @@ automatically: clear out old drafts and previews by hand. Git ignores everything
 ## running
 
 ```
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+bash scripts/setup_mac.sh                     # mac: installs everything (homebrew, python, ffmpeg-full, packages, speech model)
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # or by hand
 .venv/bin/python -m engine                    # list commands
 .venv/bin/python -m engine check_setup        # python, ffmpeg, packages
 .venv/bin/python -m engine brand list

@@ -1,7 +1,9 @@
 """the shared library: brands and style lookup, contrast, grade settings, work folder naming,
 plus the `inputs` command's rules for picking clips."""
 import json
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -159,6 +161,30 @@ class WorkFolders(unittest.TestCase):
 
 
 class SetupCheck(unittest.TestCase):
+    def test_homebrews_full_ffmpeg_is_found_off_the_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            keg = Path(tmp) / "opt" / "ffmpeg-full" / "bin"
+            keg.mkdir(parents=True)
+            (keg / "ffmpeg").write_bytes(b"")
+            with mock.patch.object(common, "BREW_FFMPEG", [Path(tmp) / "nope", keg]):
+                self.assertEqual(common.which_bin("ffmpeg"), str(keg / "ffmpeg"))
+                self.assertEqual(common.which_bin("ffprobe"), shutil.which("ffprobe"))   # not in the keg: PATH
+                self.assertEqual(common.which_bin("python3"), shutil.which("python3"))
+
+    @unittest.skipUnless(shutil.which("bash") and sys.platform != "win32", "needs a unix bash")
+    def test_mac_setup_script(self):
+        from engine.commands import transcribe
+        script = Path(common.ROOT) / "scripts" / "setup_mac.sh"
+        subprocess.run(["bash", "-n", str(script)], check=True)                          # it parses
+        text = script.read_text(encoding="utf-8")
+        self.assertIn("ffmpeg-full", text)                     # the plain ffmpeg formula has no captions
+        self.assertIn("-r requirements.txt", text)
+        self.assertIn("load_parakeet", text)
+        self.assertTrue(callable(transcribe.load_parakeet))
+        formula = re.search(r'PYTHON_FORMULA="python@(\d+)\.(\d+)"', text)
+        self.assertGreaterEqual((int(formula[1]), int(formula[2])), (3, 10))
+        self.assertIn(f'python{formula[1]}.{formula[2]}"', text)
+
     def test_ffmpeg_version_parsing(self):
         from engine.commands.check_setup import ffmpeg_major
         self.assertEqual(ffmpeg_major("ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023"), 6)

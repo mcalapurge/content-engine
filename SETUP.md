@@ -12,7 +12,7 @@
 
 1. unzip this folder somewhere permanent, eg `Documents/reels-engine`. don't leave it in downloads
 2. open claude code and point it at this folder
-3. type: **set up my editing engine**
+3. type: **set up my editing engine** (or `/content-setup`). on a mac you can also run it yourself: open the Terminal app in this folder and type `bash scripts/setup_mac.sh`
 4. say yes when it asks to install things. on a mac it may ask for your password. on windows you might need to close and reopen claude code once
 5. it sets up your first brand and interviews you about it: how you film and how you like captions. this is what makes every edit come out on-brand
 6. copy your b-roll into your brand's folder, `brands/<your name>/broll` (subfolders like `brands/<your name>/broll/hairburst` help), then say **index my b-roll**. claude looks at every clip and writes a description so it knows when to use it

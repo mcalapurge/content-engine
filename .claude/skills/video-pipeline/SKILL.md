@@ -143,11 +143,7 @@ Always also read `references/checks.md` before handing anything over. Each refer
 
 ## setup ("set up my editing engine")
 
-1. `python3 --version` (3.10+; a mac's built-in python3 is 3.9, so `brew install python` and remake `.venv`). `ffmpeg -version`. on a mac with no homebrew: they must run the installer themselves (it needs their password); after it finishes run its "next steps" lines, then `brew install ffmpeg-full`.
-2. `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
-3. `.venv/bin/python -m engine check_setup` until clean (it flags ffmpeg without caption support).
-4. `python -m engine sfx` for starter sounds (shared by every brand).
-5. add the first brand (below).
+load the `content-setup` skill and follow it (on a mac it runs `bash scripts/setup_mac.sh`, which installs everything and runs `check_setup`). then add the first brand (below).
 
 ## adding a brand ("set up a brand for mia")
 

@@ -27,7 +27,7 @@ this repo is an agentic tool. it's used **as is, locally, with the skills** to e
 
 ## skills
 
-the full workflows live in `.claude/skills/`: `video-pipeline` (core, all modes, checks) plus slash commands `/content-talking-head <brand>`, `/content-vlog <brand>`, `/content-trial-reels <brand>`, `/content-tts <brand>` (tiktok shop) and `/content-new-brand <name> <file>` (a new brand guide from a file). skills hold the process only: every look, rule and default comes from the brand's files. if this file and a skill disagree, the skill is newer.
+the full workflows live in `.claude/skills/`: `video-pipeline` (core, all modes, checks) plus slash commands `/content-setup` (install everything), `/content-talking-head <brand>`, `/content-vlog <brand>`, `/content-trial-reels <brand>`, `/content-tts <brand>` (tiktok shop) and `/content-new-brand <name> <file>` (a new brand guide from a file). skills hold the process only: every look, rule and default comes from the brand's files. if this file and a skill disagree, the skill is newer.
 
 ## folders
 
@@ -55,7 +55,7 @@ content-engine/
 ├── work/<clip>/           per-job files: transcript.json, plan.json, plan.md, review.html, takes/, captions.ass, edl.json
 ├── output/                finished videos: output/<brand>/<type>/<date>_<time>_<job>/ (covers only when asked)
 ├── docs/                  notes about the engine (eg the render audit)
-├── scripts/               one-off maintenance scripts (eg moving an old layout to this one)
+├── scripts/               setup_mac.sh (installs everything on a mac) + one-off maintenance (eg moving an old layout to this one)
 └── tests/                 tests: python -m unittest (see README "tests")
 ```
 
@@ -74,12 +74,11 @@ run the engine from the project root with the venv python:
 
 ## "set up my editing engine"
 
-1. check python 3.10+ (`python3 --version` / `py --version`). missing or older (a mac's built-in python3 is 3.9): mac `brew install python`, windows `winget install Python.Python.3.12`. an existing `.venv` made with an older python has to be deleted and made again (step 3).
-2. check ffmpeg (`ffmpeg -version`). missing: mac `brew install ffmpeg` (homebrew from brew.sh first if needed), windows `winget install Gyan.FFmpeg`, then restart the terminal / claude code.
-3. venv + install: `python3 -m venv .venv` then `.venv/bin/pip install -r requirements.txt` (windows: `py -m venv .venv`, `.venv\Scripts\pip install -r requirements.txt`).
-4. run `python -m engine check_setup`, fix anything MISSING, rerun until clean.
-5. run `python -m engine sfx` to make the starter sound effects.
-6. set up their first brand ("new brand" below).
+follow the `content-setup` skill (`/content-setup`). also the fix whenever something's missing or check_setup fails. in short:
+
+1. **mac**: `bash scripts/setup_mac.sh` does everything, only installing what's missing (safe to rerun): homebrew, python 3.13, `ffmpeg-full` (homebrew's plain `ffmpeg` has no captions; the engine finds `ffmpeg-full` by itself), `.venv` + `requirements.txt` (remade if its python is older than 3.10), the parakeet speech model, the starter sound effects, then `check_setup`. homebrew's installer needs their password, so if homebrew is missing they run the script once in the Terminal app themselves.
+2. **windows**: step by step: python 3.10+ (`winget install Python.Python.3.12`), ffmpeg (`winget install Gyan.FFmpeg`, then restart claude code), `py -m venv .venv` + `.venv\Scripts\pip install -r requirements.txt`, then `sfx` and `check_setup` (the skill has the exact steps).
+3. set up their first brand ("new brand" below).
 
 ## "set up a new brand" / "add a client" (eg "set up mia from her brand guide")
 

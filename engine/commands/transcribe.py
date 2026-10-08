@@ -105,16 +105,25 @@ def add_word_ends(words, quiet, duration):
     return out
 
 
-def transcribe_parakeet(audio, duration):
+def load_parakeet():
+    """the parakeet model, downloaded the first time (setup_mac.sh calls this so the first edit doesn't wait)."""
     try:
         import onnx_asr
     except ImportError:
         die("parakeet isn't installed. run: pip install -r requirements.txt")
+    try:
+        return onnx_asr.load_model(PARAKEET, quantization="int8")
+    except Exception as e:      # download or file problems: say so plainly instead of a wall of traceback
+        die(f"couldn't load the parakeet speech model ({type(e).__name__}: {str(e).splitlines()[0] if str(e) else ''}). "
+            "check the internet connection (the first use downloads about 700MB from huggingface.co) and try again")
+
+
+def transcribe_parakeet(audio, duration):
     samples = read_wav(audio)
     db = loudness(samples)
     if not len(db):
         return []
-    model = onnx_asr.load_model(PARAKEET, quantization="int8").with_timestamps()
+    model = load_parakeet().with_timestamps()
     words = []
     for start, end in chunk_bounds(db):
         piece = model.recognize(samples[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)], sample_rate=SAMPLE_RATE)
