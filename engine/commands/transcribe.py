@@ -62,39 +62,42 @@ def chunk_bounds(db):
     return bounds + [(start, total)]
 
 
-def quiet_starts(db):
-    """start times of every quiet stretch of at least QUIET_MIN. quiet is measured against this clip's own
+def quiet_runs(db):
+    """[(start, end)] of every quiet stretch of at least QUIET_MIN. quiet is measured against this clip's own
     noise floor and speech level, so a noisy room still has pauses."""
     floor, speech = np.percentile(db, 10), np.percentile(db, 90)
     quiet = np.concatenate([[False], db < floor + QUIET_LEVEL * (speech - floor), [False]])
     edges = np.flatnonzero(np.diff(quiet.astype(np.int8)))
     need = round(QUIET_MIN / FRAME)
-    return [start * FRAME for start, end in zip(edges[::2], edges[1::2]) if end - start >= need]
+    return [(start * FRAME, end * FRAME) for start, end in zip(edges[::2], edges[1::2]) if end - start >= need]
 
 
 def words_from_tokens(tokens, times, logprobs, offset):
-    """parakeet's word pieces -> words with a start, the start of their last piece and a confidence.
-    a piece starting with a space begins a new word; punctuation and endings join the word before."""
+    """parakeet's word pieces -> words with a start, the start of their last spoken piece and a confidence.
+    a piece starting with a space begins a new word; punctuation and endings join the word before.
+    punctuation is often timed late (where the pause has begun), so it doesn't count as a sound."""
     words = []
     for token, at, logprob in zip(tokens, times, logprobs):
         if token.startswith(" ") or not words:
             words.append({"text": "", "start": offset + at, "last": offset + at, "logprobs": []})
         word = words[-1]
         word["text"] += token
-        word["last"] = offset + at
+        if any(c.isalnum() for c in token):
+            word["last"] = offset + at
         word["logprobs"].append(logprob)
     return [w for w in words if w["text"].strip()]
 
 
 def add_word_ends(words, quiet, duration):
-    """parakeet only times where each piece starts. a word ends where the next quiet stretch starts, if
-    one comes before the next word (a pause), else where the next word starts (no pause between them)."""
+    """parakeet only times where each piece starts. a word ends where the quiet after its last sound
+    starts, if that comes before the next word (a pause), else where the next word starts (no pause)."""
+    quiet_ends = [end for _, end in quiet]
     out = []
     for i, w in enumerate(words):
         limit = words[i + 1]["start"] if i + 1 < len(words) else duration
-        earliest, latest = w["last"] + WORD_MIN, min(limit, w["last"] + WORD_TAIL_MAX)
-        n = bisect.bisect_left(quiet, earliest)
-        end = quiet[n] if n < len(quiet) and quiet[n] < latest else latest
+        latest = min(limit, w["last"] + WORD_TAIL_MAX)
+        n = bisect.bisect_right(quiet_ends, w["last"] + WORD_MIN)     # first quiet still going after the sound
+        end = max(quiet[n][0], w["last"]) if n < len(quiet) and quiet[n][0] < latest else latest
         end = min(max(end, w["start"] + WORD_MIN), limit)
         prob = math.exp(sum(w["logprobs"]) / len(w["logprobs"]))
         out.append({"text": w["text"].strip(), "start": round(w["start"], 3), "end": round(max(end, w["start"]), 3),
@@ -117,7 +120,7 @@ def transcribe_parakeet(audio, duration):
         piece = model.recognize(samples[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)], sample_rate=SAMPLE_RATE)
         tokens = piece.tokens or []
         words += words_from_tokens(tokens, piece.timestamps or [], piece.logprobs or [0.0] * len(tokens), start)
-    return add_word_ends(words, quiet_starts(db), duration)
+    return add_word_ends(words, quiet_runs(db), duration)
 
 
 def transcribe_whisper(audio, size):

@@ -48,9 +48,10 @@ class Pieces(unittest.TestCase):
 
     def test_quiet_is_relative_to_the_room(self):
         noisy = tone_and_gaps(("tone", 1), ("gap", 0.3), ("tone", 1)) + 0.02     # a loud noise floor
-        starts = tr.quiet_starts(tr.loudness(noisy))
-        self.assertEqual(len(starts), 1)
-        self.assertAlmostEqual(starts[0], 1.0, delta=0.02)
+        runs = tr.quiet_runs(tr.loudness(noisy))
+        self.assertEqual(len(runs), 1)
+        self.assertAlmostEqual(runs[0][0], 1.0, delta=0.02)
+        self.assertAlmostEqual(runs[0][1], 1.3, delta=0.02)
 
 
 class Words(unittest.TestCase):
@@ -60,10 +61,11 @@ class Words(unittest.TestCase):
         words = tr.words_from_tokens(tokens, times, [math.log(0.9)] * 7, offset=10.0)
         self.assertEqual([w["text"].strip() for w in words], ["Charge", "seven", "hundred,", "pounds."])
         self.assertEqual((words[0]["start"], words[0]["last"]), (10.0, 10.08))
+        self.assertEqual(words[2]["last"], 10.8)                        # the comma isn't a sound
 
     def test_a_word_ends_at_the_pause_or_where_the_next_begins(self):
         words = tr.words_from_tokens([" one", " two", " three"], [0.0, 0.3, 2.0], [0.0, math.log(0.5), 0.0], 0.0)
-        out = tr.add_word_ends(words, quiet=[0.5, 2.6], duration=3.0)
+        out = tr.add_word_ends(words, quiet=[(0.5, 1.9), (2.6, 3.0)], duration=3.0)
         self.assertEqual([w["end"] for w in out], [0.3, 0.5, 2.6])     # no pause / pause / last word
         self.assertEqual([w["prob"] for w in out], [1.0, 0.5, 1.0])
 
@@ -74,6 +76,14 @@ class Words(unittest.TestCase):
         self.assertEqual(out[1]["end"], 5.05)                           # never past the end of the clip
         same = tr.words_from_tokens([" a", " b"], [1.0, 1.0], [0.0, 0.0], 0.0)
         self.assertEqual(tr.add_word_ends(same, [], 2.0)[0]["end"], 1.0)
+
+    def test_a_late_full_stop_or_a_short_last_sound_still_finds_the_pause(self):
+        # "rights." then "Send": the full stop is timed inside the pause, which starts 0.05s after "rights"
+        words = tr.words_from_tokens([" rights", ".", " Send"], [1.0, 1.4, 1.8], [0.0, 0.0, 0.0], 0.0)
+        out = tr.add_word_ends(words, quiet=[(1.05, 1.75)], duration=2.5)
+        self.assertEqual(out[0]["text"], "rights.")
+        self.assertEqual(out[0]["end"], 1.08)                           # at least WORD_MIN long
+        self.assertGreater(out[1]["start"] - out[0]["end"], 0.6)
 
 
 class WithStandInModel(unittest.TestCase):
@@ -141,7 +151,7 @@ class Transcribe(unittest.TestCase):
                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", video)
             box.engine("transcribe", video)
             data = json.loads((box.work / "voice" / "transcript.json").read_text(encoding="utf-8"))
-            print("\n  heard:", " ".join(w["text"] for w in data["words"]))
+            print("\n  heard:", " ".join(f'{w["text"]}[{w["start"]}-{w["end"]}]' for w in data["words"]))
             heard = " ".join(w["text"] for w in data["words"]).lower()
             for word in ("charge", "usage", "rights", "invoice", "follow"):
                 self.assertIn(word, heard)
