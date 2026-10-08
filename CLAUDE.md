@@ -27,7 +27,7 @@ this repo is an agentic tool. it's used **as is, locally, with the skills** to e
 
 ## skills
 
-the full workflows live in `.claude/skills/`: `video-pipeline` (core, all modes, checks) plus slash commands `/content-talking-head <brand>`, `/content-vlog <brand>`, `/content-trial-reels <brand>` and `/content-tts <brand>` (tiktok shop). skills hold the process only: every look, rule and default comes from the brand's files. if this file and a skill disagree, the skill is newer.
+the full workflows live in `.claude/skills/`: `video-pipeline` (core, all modes, checks) plus slash commands `/content-talking-head <brand>`, `/content-vlog <brand>`, `/content-trial-reels <brand>`, `/content-tts <brand>` (tiktok shop) and `/content-new-brand <name> <file>` (a new brand guide from a file). skills hold the process only: every look, rule and default comes from the brand's files. if this file and a skill disagree, the skill is newer.
 
 ## folders
 
@@ -46,7 +46,8 @@ content-engine/
 │   ├── talking-head/      talking-to-camera clips
 │   ├── shop/              batch-filmed tiktok shop takes
 │   ├── vlog/<folder>/     b-roll / vlog clips, one folder per video
-│   └── trial/<folder>/    trial reel sets (spreadsheet + extra clips)
+│   ├── trial/<folder>/    trial reel sets (spreadsheet + extra clips)
+│   └── brand-guides/      brand guide files (pdf, docs, screenshots, LUTs) to build a new brand from
 ├── assets/                shared by every brand
 │   ├── styles/            generic looks (editorial, playful, butter) to start a brand from
 │   ├── fonts/  music/  sfx/
@@ -79,14 +80,16 @@ run the engine from the project root with the venv python:
 5. run `python -m engine sfx` to make the starter sound effects.
 6. set up their first brand ("new brand" below).
 
-## "set up a new brand" / "add a client" (eg "set up mia")
+## "set up a new brand" / "add a client" (eg "set up mia from her brand guide")
 
-1. `python -m engine brand new <name> --style <editorial|playful|butter>` (pick the closest generic look). this copies `brands/_template/` to `brands/<name>/`.
-2. **brand interview** (~20-40 mins, one question at a time, conversational), following the headings in `brands/<name>/brand.md`: who they are and who they talk to, tone, how they film (do they repeat lines, framing, lighting), rules for picking the best take, caption style and words that must be spelt a certain way, pacing, fonts and colours, accounts, defaults per format. write the answers into their `brand.md`.
-3. set their fonts and colours in `brands/<name>/style.json` (font files go in `assets/fonts/`). check `python -m engine contrast --brand <name>`.
-4. ask for their usual capcut grade settings and put them in `brands/<name>/grade.json` with `"enabled": true`.
-5. b-roll: ask them to copy their b-roll into `brands/<name>/broll/` (subfolders by theme help, eg `brands/<name>/broll/products/`), then do the "b-roll library" steps below.
-6. ask them to drop a short test clip in `inputs/talking-head/` and run `python -m engine grade <clip> --brand <name>`. show them the before/after image (left = before, right = after). if the grade looks too strong or weak, adjust the `strength` values in grade.json, not their slider numbers.
+follow the `content-new-brand` skill (`/content-new-brand <name> [file]`). in short:
+
+1. the brand guide file goes in `inputs/brand-guides/` (pdf brand book, doc, notes, screenshots, or a folder of them). no file → the full brand interview instead.
+2. `python -m engine brand new <name> --style <editorial|playful|butter>` (closest generic look) copies `brands/_template/` to `brands/<name>/`.
+3. read the whole file and generate `brand.md`, `style.json` (fonts in `assets/fonts/`, then `python -m engine contrast --brand <name>`), `grade.json` and `effects.md` from it. say what came from the guide and what you assumed.
+4. **grade / LUTs: only the engine's optimised path.** put the numbers in `grade.json` (`"enabled": true`) and let `python -m engine grade <clip> --brand <name>` build the colour table (one 36x36x36 table from a 16-bit identity image, applied with tetrahedral `lut3d`, clarity kept separate, cached in `work/_grade/`). never hand-write a `.cube`, make an 8-bit table or render with the raw filter chain. a LUT file that comes with the guide is matched with grade.json numbers (the engine doesn't load external LUTs yet).
+5. fill the gaps with a short interview, one question at a time. b-roll into `brands/<name>/broll/`, then the "b-roll library" steps below.
+6. show the grade before/after (left = before, right = after). too strong or weak → adjust `strength` values in grade.json, not their slider numbers.
 
 ## "i have a new reel" / "edit this reel" (the main loop)
 

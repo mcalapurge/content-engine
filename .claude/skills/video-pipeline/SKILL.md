@@ -89,6 +89,7 @@ where this lives in the engine: `engine/core/common.py` (`vin`, `h264`, `FINAL_B
 | `inputs/shop/` | batch-filmed / compilation shop videos (read only) |
 | `inputs/vlog/` | b-roll / vlog clips (read only) |
 | `inputs/trial/` | trial reel sets: the spreadsheet + any extra clips for that set (read only) |
+| `inputs/brand-guides/` | brand guide files to build a new brand from (read only) |
 | `brands/<brand>/` | everything brand-specific (see step 0). `brands/_template/` is the starting point for a new brand |
 | `assets/styles/` | generic style templates (editorial, playful, butter) to start a brand's look from |
 | `assets/fonts/` | fonts, shared by every brand |
@@ -141,11 +142,9 @@ Always also read `references/checks.md` before handing anything over. Each refer
 
 ## adding a brand ("set up a brand for mia")
 
-1. `python -m engine brand new <name> --style <editorial|playful|butter>` copies `brands/_template/` to `brands/<name>/` with the closest generic look as its `style.json`.
-2. **brand interview** (~20-40 mins, one question at a time, conversational), following the headings in their new `brand.md`: who they are and who they talk to, tone, how they film, take rules, caption style and words that must be spelt a certain way, pacing, fonts and colours, accounts, defaults per format. write the answers into `brands/<name>/brand.md`.
-3. set their fonts and colours in `brands/<name>/style.json` (fonts go in `assets/fonts/`). check contrast: `python -m engine contrast --brand <name>`.
-4. their usual capcut grade numbers into `brands/<name>/grade.json`, `"enabled": true`. test it: `python -m engine grade <clip> --brand <name>` makes `output/<clip>_<name>_grade_compare.jpg` (left before, right after). adjust `strength` values, not their slider numbers.
-5. b-roll into `brands/<name>/broll/` then `python -m engine broll index --brand <name>` and describe every clip (see talking-head reference).
+load the `content-new-brand` skill and follow it. it builds `brands/<name>/` from a brand guide file in `inputs/brand-guides/` (or an interview if there's no file): brand.md, style.json, grade.json, effects.md, b-roll.
+
+any colour table (LUT) for a brand comes only from the engine's optimised grade path: numbers in `grade.json`, table built by `grade_filter()` / `build_lut()` (36x36x36 from a 16-bit identity image, tetrahedral `lut3d`, clarity kept out as `unsharp=7:7`, cached in `work/_grade/`). never hand-write a `.cube`, build an 8-bit table or preview with the raw `colour_chain()` filters.
 
 ## other requests (any mode)
 

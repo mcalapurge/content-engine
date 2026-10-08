@@ -32,8 +32,9 @@ The brand always comes first, then the optional bits.
 | `/content-tts <brand> [folder] [product] [how many]` | tiktok shop videos split from a batch take or compilation in `inputs/shop/` | `/content-tts beth halara-batch "Halara Wide Leg Trousers" 5` |
 | `/content-vlog <brand> [folder] [track] [no grade]` | a short b-roll / vlog edit from a folder in `inputs/vlog/` | `/content-vlog mia lisbon-trip assets/music/sunny.mp3` |
 | `/content-trial-reels <brand> [folder]` | instagram trial reels (text over b-roll) from a spreadsheet in `inputs/trial/` | `/content-trial-reels beth october` |
+| `/content-new-brand <name> [file]` | a new brand (guide, look, grade, effects) generated from a brand guide file in `inputs/brand-guides/` | `/content-new-brand mia mia-brand-book.pdf` |
 
-The `video-pipeline` skill is the shared core behind all four. It loads by itself for any editing
+The `video-pipeline` skill is the shared core behind all of them. It loads by itself for any editing
 request, so you don't call it directly.
 
 ### or just ask in plain words
@@ -51,15 +52,24 @@ what's working in this reel: (link)   ← then: "what could mia borrow from it?"
 
 ### adding a brand
 
+Drop their brand guide in `inputs/brand-guides/` (a pdf brand book, a doc, notes, screenshots, a
+LUT or preset, or a folder of them, eg `inputs/brand-guides/mia/`), then:
+
 ```
-set up a new brand for mia
+/content-new-brand mia mia-brand-book.pdf
+set up a new brand for mia from her brand guide        ← same thing in plain words
+set up a new brand for mia                             ← no file: Claude interviews you instead
 ```
 
-Claude runs `python -m engine brand new mia --style <editorial|playful|butter>`, which copies
-`brands/_template/` to `brands/mia/`. Then it interviews you one question at a time and fills in
-`brands/mia/brand.md`, sets her fonts and colours in `style.json`, takes her capcut grade numbers into
-`grade.json`, and indexes her b-roll once you've copied it into `brands/mia/broll/`. Check what's
-set up with `python -m engine brand list` (or ask "which brands do we have?").
+Claude runs `python -m engine brand new mia --style <editorial|playful|butter>` (copies
+`brands/_template/` to `brands/mia/`), reads the whole guide and generates `brand.md`, `style.json`,
+`grade.json` and `effects.md` from it, tells you what it took from the guide and what it assumed,
+then asks only about the gaps, one question at a time. Then it indexes her b-roll once you've copied
+it into `brands/mia/broll/`. Check what's set up with `python -m engine brand list`.
+
+The colour grade always goes through the engine's optimised colour table (one 36x36x36 table
+built from the grade numbers, applied in a single pass), never a hand-made LUT. A LUT that comes
+with the guide is matched with grade numbers, since the engine doesn't load external LUT files yet.
 
 ### organising footage
 
@@ -84,7 +94,7 @@ engine/                the code, run as: python -m engine <command>
   commands/            one module per command
 brands/<brand>/        brand.md, effects.md, style.json, styles/, grade.json, broll/
 brands/_template/      copied for a new brand
-inputs/                raw footage, read only: talking-head/, shop/, vlog/, trial/
+inputs/                raw footage + brand guide files, read only: talking-head/, shop/, vlog/, trial/, brand-guides/
 assets/                shared by every brand: styles/ (generic looks), fonts/, music/, sfx/
 references/            other people's reels broken down
 work/                  per-job working files (git-ignored)

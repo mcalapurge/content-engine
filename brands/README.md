@@ -12,7 +12,7 @@ here, so the engine and the skills stay generic.
 | `grade.json` | their colour grade, capcut-style numbers |
 | `broll/` | their b-roll library: clips (subfolders ok), `library.json` (descriptions, tags), `_previews/` |
 
-- new brand: `python -m engine brand new <name> --style editorial` (copies `_template/`), then the brand interview
+- new brand: `/content-new-brand <name> <file>` builds it from a brand guide in `inputs/brand-guides/` (or `python -m engine brand new <name> --style editorial` copies `_template/`, then the brand interview)
 - see them all: `python -m engine brand list`
 - every command that reads brand settings takes `--brand <name>`; a job's plan.json remembers it
 - folders starting with `_` (like `_template`) are not brands

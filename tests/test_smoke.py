@@ -79,7 +79,7 @@ class Brands(unittest.TestCase):
 
 class Layout(unittest.TestCase):
     def test_folders_exist(self):
-        for d in ("talking-head", "shop", "vlog", "trial"):
+        for d in ("talking-head", "shop", "vlog", "trial", "brand-guides"):
             self.assertTrue((INPUTS_DIR / d).is_dir(), d)
         for d in ("assets/fonts", "assets/music", "assets/sfx", "assets/styles", "work", "output", "references"):
             self.assertTrue((ROOT / d).is_dir(), d)
