@@ -171,6 +171,41 @@ def work_dir_for(video_path):
     return job_dir("-".join(input_subfolders(path) + [path.stem]), path.stem, owns)
 
 
+# ---------- output folders ----------
+# every render gets its own folder: output/<brand>/<type>/<date>_<time>_<job>/, so a re-render never
+# overwrites the last one and each brand's videos stay together.
+OUTPUT_TYPES = ("talking-head", "shop", "vlog", "trial", "previews", "grade")
+
+
+def content_type(source):
+    """what kind of job a source clip or folder is, from where it sits: the inputs/ folder it's in
+    (talking-head, shop, vlog, trial), or shop for parts cut from a batch take in work/<video>/.
+    anything else (a clip passed by path from elsewhere) counts as talking-head."""
+    path = Path(source).resolve()
+    for base, pick in ((INPUTS_DIR, lambda parts: parts[0]),
+                       (WORK_DIR, lambda parts: "shop" if len(parts) > 2 and parts[1] in ("parts", "videos") else None)):
+        try:
+            parts = path.relative_to(Path(base).resolve()).parts
+        except ValueError:
+            continue
+        kind = pick(parts) if parts else None
+        if kind in OUTPUT_TYPES:
+            return kind
+    return "talking-head"
+
+
+def output_folder(brand_name, kind, job):
+    """a new output/<brand>/<type>/<YYYY-MM-DD_HHMM>_<job>/ folder (-2, -3... if that minute is taken)."""
+    from datetime import datetime
+    base = OUTPUT_DIR / brand_name / kind
+    name = f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_{safe_name(job) or 'job'}"
+    folder, n = base / name, 2
+    while folder.exists():
+        folder, n = base / f"{name}-{n}", n + 1
+    folder.mkdir(parents=True)
+    return folder
+
+
 def date_added(p):
     """when the file landed in its folder (finder's "date added"), not when it was filmed.
     falls back to the file's change time off a mac."""

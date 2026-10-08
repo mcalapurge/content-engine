@@ -97,7 +97,7 @@ where this lives in the engine: `engine/core/common.py` (`vin`, `h264`, `FINAL_B
 | `assets/sfx/` | sound effects: whoosh, swoosh, pop, click, ding, riser, shared |
 | `references/` | other creators' reels broken down for learning |
 | `work/<name>/` | working files per video: transcript.json, plan.json, plan.md, edl.json, captions.ass, takes/, review.html |
-| `output/` | finished videos. subfolders for sets (eg `output/trial/`) |
+| `output/` | finished videos: `output/<brand>/<type>/<date>_<time>_<job>/`, a new folder per render (type = talking-head, shop, vlog, trial, previews, grade) |
 | `engine/` | the code: `core/` shared library, `commands/` one module per command |
 
 ## picking which clips to use (every job)
@@ -151,7 +151,7 @@ any colour table (LUT) for a brand comes only from the engine's optimised grade 
 - **change the grade**: edit `brands/<brand>/grade.json`, rerun `python -m engine grade <clip> --brand <brand> --at <sec>`, show the comparison. (the colour table rebuilds itself from the new numbers. to compare against the raw filter chain while tuning, use `colour_chain()` in grade.py) measure, don't guess: sample the colour of something that should be neutral (eg a black t-shirt) before/after (see checks.md).
 - **music**: `python -m engine music list`. AI music needs `ELEVENLABS_API_KEY` in `.env`: `python -m engine music generate "<mood, instrumental>" --seconds <len+5> --name <mood>`. remind them once that library/AI music needs commercial rights for paid brand content.
 - **break down someone else's reel**: `python -m engine analyse <link>` (`--browser chrome` if instagram blocks it, or pass a screen recording). read `references/<name>/stats.json` + contact sheets. explain hook speed, pacing, text, b-roll, structure, ending. finish with 2-3 things to borrow in the brand's own style (from its brand.md). never suggest copying the script.
-- **thumbnail**: rerun render with `--cover`, or `ffmpeg -ss <sec> -i output/<reel>.mp4 -frames:v 1 -q:v 2 output/<reel>_cover2.jpg`
+- **thumbnail**: rerun render with `--cover`, or `ffmpeg -ss <sec> -i <reel folder>/<reel>.mp4 -frames:v 1 -q:v 2 <reel folder>/<reel>_cover2.jpg`
 - **add to effects library**: they show a screenshot + a name. describe it in `brands/<brand>/effects.md` with how to recreate it with existing settings. if the engine can't do it, say so and offer to build it.
 - **post caption**: write it in the brand's voice (tone in its brand.md), no em dashes.
 

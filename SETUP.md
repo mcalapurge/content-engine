@@ -24,7 +24,7 @@
 2. say: **i have a new reel** (with more than one brand, say whose it is: **i have a new reel for mia**)
 3. it cuts your ums and dead air, picks your best takes, and drops in b-roll where it fits
 4. a review page opens in your browser: every line with a thumbnail, how long it took to say, and dropdowns for zoom, b-roll and sound. make changes, hit **copy instructions**, paste into claude
-5. say **go**. it builds the reel with your grade, captions, hook, zooms, b-roll, sound effects and music, checks its own work, and saves it in `output`
+5. say **go**. it builds the reel with your grade, captions, hook, zooms, b-roll, sound effects and music, checks its own work, and saves it in `output/<brand>/<type>/`, a new dated folder each time
 
 ## more than one brand (clients)
 

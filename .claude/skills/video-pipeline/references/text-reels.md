@@ -42,7 +42,7 @@ Short (~8-11s) reels: 3 lines of text (hook, middle, call to action) over 3 b-ro
    ```
    .venv/bin/python -m engine textreel render <name>            # in the brand saved by import
    ```
-   Outputs `output/<name>/<name>_01.mp4` ... plus `output/<name>/captions.md` (each reel's post caption + the carousel it points to, ready to paste; only written on a full render).
+   Outputs `output/<brand>/trial/<date>_<time>_<name>/<name>_01.mp4` ... plus `captions.md` in the same folder (each reel's post caption + the carousel it points to, ready to paste; only written on a full render).
 7. **check** (checks.md): a hook-frame contact sheet of every reel (is the text readable, centred, on a sensible shot?), flash scan, audio present.
 
 ## feedback history

@@ -75,7 +75,7 @@ So, when making a brand:
   ```
   .venv/bin/python -m engine grade <clip> --brand <name> [--at <sec>]
   ```
-  this builds the optimised table and saves `output/<clip>_<name>_grade_compare.jpg` (left before, right after). too strong or weak → adjust the `strength` values in grade.json, not their slider numbers. measure a neutral (eg black clothing) before/after as in `video-pipeline/references/checks.md`
+  this builds the optimised table and saves `output/<name>/grade/<date>_<time>_<clip>/<clip>_grade_compare.jpg` (left before, right after). too strong or weak → adjust the `strength` values in grade.json, not their slider numbers. measure a neutral (eg black clothing) before/after as in `video-pipeline/references/checks.md`
 - **the guide ships its own LUT** (`.cube` / `.3dl`) or a preset screenshot: the engine doesn't load external LUT files. match it with grade.json numbers instead (apply their LUT to a test frame with ffmpeg `lut3d` only to compare, then tune the numbers until the engine's grade compare matches it), and keep their file in `inputs/brand-guides/` for reference. if the match isn't close enough, say so and offer to add external-LUT support to `engine/core/grade.py`, applied through the same tetrahedral `lut3d` pass with clarity kept separate
 
 ## 6. effects.md

@@ -87,7 +87,7 @@ it fills this in during the brand interview. edit it any time, or say "update be
 - keywords: about one per line, numbers first, then the key term
 - b-roll from her library: always full screen, max ~40% of lines, never on the hook, a key opinion line or the ending
 - grade on for her talking footage. b-roll stays ungraded unless it's her raw footage (`"grade": true`)
-- output lands as `output/<clip>_beth.mp4`
+- output lands as `output/beth/talking-head/<date>_<time>_<clip>/<clip>_beth.mp4`
 
 ## tiktok shop defaults (wornbybeth)
 - past products: Halara Wide Leg Trousers, wide-calf boots
@@ -173,5 +173,5 @@ it fills this in during the brand interview. edit it any time, or say "update be
 - the DJI kitchen-table clip was removed from her b-roll; don't use it
 
 ## status (7 Oct 2026)
-- trial set `trial`: 30 reels in `output/trial/` from `work/trial/plan.json`. no final feedback yet
+- trial set `trial`: 30 reels in `output/trial/` (rendered before outputs were sorted by brand) from `work/trial/plan.json`. no final feedback yet
 - `inputs/vlog/` has 64 raw clips (travel, airport, plane, italy lakeside, cafes, food, selfies, shops) measured but not yet described or used

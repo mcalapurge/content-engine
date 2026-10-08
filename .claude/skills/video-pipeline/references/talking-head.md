@@ -99,7 +99,7 @@ You can't hear, and the transcriber drops or smears words where someone stumbles
 .venv/bin/python -m engine render <clip> --plan work/<clip>/plan_b.json --spot 7.5   # try a fix without touching plan.json
 ```
 
-Spot times are finished-reel seconds: get them from `edl.json` `segments` (`new_start` of the piece after the join) or from `--cuts` labels. Output: `output/<clip>_spot.mp4` (or `_spot_<plan name>.mp4`).
+Spot times are finished-reel seconds: get them from `edl.json` `segments` (`new_start` of the piece after the join) or from `--cuts` labels. Output: `output/<brand>/previews/<date>_<time>_<clip>/<clip>_spot.mp4` (or `_spot_<plan name>.mp4`).
 
 How to fix one:
 1. find what's really there: print the loudness every 20-40ms around the join (ffmpeg `-f s16le` piped into a small rms loop) and match the syllables to the words. silence dips between words show where a missed word sits
@@ -109,7 +109,7 @@ How to fix one:
 
 ## 7. check the cuts, then render + qc
 
-**Check the cuts first** (fast, no full render). Renders only ~1.5s either side of every cut (shot changes + b-roll in/out) at half size, scans each one for stray frames, and joins them into `output/<clip>_cuts_preview.mp4` with "cut N at Xs" labels:
+**Check the cuts first** (fast, no full render). Renders only ~1.5s either side of every cut (shot changes + b-roll in/out) at half size, scans each one for stray frames, and joins them into `<clip>_cuts_preview.mp4` in a new `output/<brand>/previews/` folder, with "cut N at Xs" labels:
 
 ```
 .venv/bin/python -m engine render <clip> --cuts                 # all cuts. prints "clean" or "FLASH at ..." per cut
@@ -124,7 +124,7 @@ Fix anything flagged (plan.json `start` / `cut_words` / b-roll `start`), re-chec
 .venv/bin/python -m engine qc <clip>                    # FAIL = fix it. explain warnings in one line
 ```
 
-Output: `output/<clip>_<style>.mp4` (style = the brand's name unless a variation was used). Then do the visual checks in checks.md (frames at b-roll moments, hook frame, flash scan).
+Output: `output/<brand>/<talking-head|shop>/<date>_<time>_<clip>/<clip>_<style>.mp4` (style = the brand's name unless a variation was used), with the cover and capcut pack beside it. The render prints the path; `edl.json` keeps it. Then do the visual checks in checks.md (frames at b-roll moments, hook frame, flash scan).
 
 What render does automatically (don't redo by hand):
 - snaps every cut to the real audio (silence map), so words aren't clipped and the first word starts on frame 1; holds ~0.35s after the last word

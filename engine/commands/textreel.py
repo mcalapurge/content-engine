@@ -19,8 +19,8 @@ from pathlib import Path
 import numpy as np
 
 from engine.core.brand import add_brand_arg, get_brand, load_style
-from engine.core.common import (h264, vin, FONTS_DIR, MUSIC_DIR, OUTPUT_DIR, ROOT, WORK_DIR, die, find_bin, load_json,
-                    run, save_json, sdr_filter)
+from engine.core.common import (h264, vin, FONTS_DIR, MUSIC_DIR, ROOT, WORK_DIR, die, find_bin, load_json,
+                                output_folder, run, save_json, sdr_filter)
 from engine.commands.vlog import detect_beats
 
 W, H, FPS = 1080, 1920, 30
@@ -254,8 +254,7 @@ def cmd_render(args):
     brand = get_brand(args.brand, plan)
     st = load_style(plan.get("style") or brand.name, brand)
     only = {int(x) for x in args.only.split(",")} if args.only else None
-    out_dir = OUTPUT_DIR / args.name
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = output_folder(brand.name, "trial", args.name)     # output/<brand>/trial/<date>_<time>_<set>/
     caps = []
     for reel in plan["reels"]:
         if only and reel["id"] not in only:

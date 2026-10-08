@@ -53,7 +53,7 @@ content-engine/
 │   ├── fonts/  music/  sfx/
 ├── references/            other people's reels broken down for learning
 ├── work/<clip>/           per-job files: transcript.json, plan.json, plan.md, review.html, takes/, captions.ass, edl.json
-├── output/                finished videos, grade previews (covers only when asked)
+├── output/                finished videos: output/<brand>/<type>/<date>_<time>_<job>/ (covers only when asked)
 ├── docs/                  notes about the engine (eg the render audit)
 ├── scripts/               one-off maintenance scripts (eg moving an old layout to this one)
 └── tests/                 tests: python -m unittest (see README "tests")
@@ -62,6 +62,7 @@ content-engine/
 - **never modify, move or delete anything in `inputs/`** (any of its folders or subfolders).
 - every input folder can have subfolders per job (or per brand): `python -m engine inputs` decides which clips a job uses (see the video-pipeline skill). a clip in a subfolder gets the subfolder in its work folder name (`inputs/talking-head/mia/intro.mov` → `work/mia-intro/`, `inputs/vlog/mia/trip/` → `work/vlog-mia-trip/`)
 - a brand folder: `brand.md` (who they are, tone, filming, take rules, captions, accounts, defaults per format, past feedback, open items), `effects.md` (named effects), `style.json` (caption/overlay look), `styles/` (optional variations, `--style <name>`), `grade.json` (colour grade), `broll/` (their b-roll + `library.json` + `_previews/`)
+- every render gets its own folder: `output/<brand>/<type>/<date>_<time>_<job>/` (type = talking-head, shop, vlog, trial, previews or grade), so re-renders never overwrite each other. the type comes from where the source sits in `inputs/` (batch parts count as shop); cut and spot previews go in `previews/`, grade before/afters in `grade/`. the render prints the exact path and saves it in the job's `edl.json` (`output`)
 - `.env` api keys (ELEVENLABS_API_KEY). never print or repeat keys
 
 run the engine from the project root with the venv python:
@@ -112,7 +113,7 @@ follow the `content-new-brand` skill (`/content-new-brand <name> [file]`). in sh
 8. **never render before they approve** ("yes", "go", "build it", or pasted review with "no changes").
 9. **render**: `python -m engine render [clip]` (uses the brand and style saved in plan.json). `--draft` for a quick preview. `--capcut` also exports a layer pack for finishing in capcut. `--no-grade` if they ask for it ungraded.
 10. **qc**: `python -m engine qc [clip]`. show the table. **be honest**: FAIL means it failed, fix it before calling it done. explain warnings in one line.
-11. hand over the reel from `output/`. offer to write the post caption in the brand's voice (tone from its brand.md).
+11. hand over the reel from its folder in `output/<brand>/<type>/` (the path the render printed). offer to write the post caption in the brand's voice (tone from its brand.md).
 
 ## tiktok shop batch ("edit my shop batch")
 
@@ -121,7 +122,7 @@ some brands batch film several tiktok shop videos in one long take into `inputs/
 1. **split**: `python -m engine batch split inputs/shop/<video>` transcribes the whole file and splits at pauses of 1.5s+. read the table and check each section starts with a hook and makes sense on its own. if a split looks wrong, rerun with `--gap <secs>` or `--count <n>` (the number of videos they say are in there). ask for the product name once, and spell it right in captions.
 2. **cut**: `python -m engine batch cut inputs/shop/<video>` saves each video to `work/<video>/parts/<video>_01.mp4` etc. the original is never touched.
 3. for each part, the normal loop with the part's path: `transcribe`, `plan <part> --brand <brand> --no-text` (captions only: no hook card, stat pops or step badges, unless the brand guide says otherwise), `takes` if lines repeat, then fix transcript typos, pick keywords and motion. b-roll only if they ask.
-4. show all the beat tables together, one approval, render all, qc all, report in one table. outputs land in `output/<video>_01_<style>.mp4` etc.
+4. show all the beat tables together, one approval, render all, qc all, report in one table. each part lands in its own folder in `output/<brand>/shop/`.
 
 ## b-roll / vlog edits ("edit my vlog <folder>")
 
@@ -139,7 +140,7 @@ no talking: a folder of clips becomes a short edit they add a voiceover to later
    - `nat`: false to mute a shot's natural sound. `note`: what the shot is, for the table
    - reprint with `python -m engine vlog table inputs/vlog/<folder>` (also rebuilds `storyboard.jpg`, one frame per piece)
 5. show them the table + storyboard. **no render before approval.** `--draft` for a quick look.
-6. **render**: `python -m engine vlog render inputs/vlog/<folder>`. the brand's grade is applied (raw footage) unless `--no-grade`. with music you get `output/vlog-<folder>.mp4` (music + natural sound) and `_no_music.mp4` (natural sound only, for their voiceover + own music in capcut). without music, just the one file.
+6. **render**: `python -m engine vlog render inputs/vlog/<folder>`. the brand's grade is applied (raw footage) unless `--no-grade`. it lands in `output/<brand>/vlog/<date>_<time>_<folder>/`: with music you get `vlog-<folder>.mp4` (music + natural sound) and `_no_music.mp4` (natural sound only, for their voiceover + own music in capcut). without music, just the one file.
 
 ## b-roll library (per brand)
 
@@ -166,7 +167,7 @@ no talking: a folder of clips becomes a short edit they add a voiceover to later
 - "add this to <brand>'s effects library": they show a screenshot + a name. describe it in `brands/<brand>/effects.md` with how to recreate it with the existing treatments/motions and style settings. if it needs something the engine can't do yet, say so and offer to build it into render.py.
 - "change <brand>'s grade": edit `brands/<brand>/grade.json`, rerun `python -m engine grade <clip> --brand <brand>` to show before/after.
 - "a week of reels from this folder": transcribe + plan every clip, best takes, show all beat tables together, one approval, render all, qc all, report in one table.
-- "make a thumbnail": rerun render with `--cover`, or for another moment: `ffmpeg -ss <sec> -i output/<reel>.mp4 -frames:v 1 -q:v 2 output/<reel>_cover2.jpg`
+- "make a thumbnail": rerun render with `--cover`, or for another moment: `ffmpeg -ss <sec> -i <reel folder>/<reel>.mp4 -frames:v 1 -q:v 2 <reel folder>/<reel>_cover2.jpg`
 - errors: read them, fix, rerun. font not found -> fall back to Arial and say so.
 
 ## limits (say so plainly if asked)

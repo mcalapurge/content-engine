@@ -19,8 +19,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from engine.core.brand import add_brand_arg, get_brand, load_style
-from engine.core.common import (FONTS_DIR, IMAGE_EXTS, OUTPUT_DIR, ROOT, SFX_DIR, WORK_DIR, die, find_bin, h264, load_json,
-                                norm, resolve_video, run, save_json, sdr_filter, vin, work_dir_for)
+from engine.core.common import (FONTS_DIR, IMAGE_EXTS, ROOT, SFX_DIR, WORK_DIR, content_type, die, find_bin, h264,
+                                load_json, norm, output_folder, resolve_video, run, save_json, sdr_filter, vin,
+                                work_dir_for)
 from engine.core.contrast import MIN_RATIO, badge_colours, problems as contrast_problems, takeover_colours
 from engine.core.grade import grade_filter, has_huesaturation, load_grade
 
@@ -970,10 +971,10 @@ def print_report(kind, report):
         print(f"  {kind} {number:2} at {label:>14}: " + (f"FLASH at {flashes}" if flashes else "clean"))
 
 
-def preview_cuts(video, work_dir, transcript, style, edit, grade, pad=1.5, only=None):
+def preview_cuts(video, work_dir, transcript, style, edit, grade, brand_name, pad=1.5, only=None):
     """same edit as the full render, but only ~pad seconds either side of every cut
     (shot changes + b-roll in/out). each window is checked for stray frames, then all
-    windows are joined into one labelled preview. much faster than a full render."""
+    windows are joined into one labelled preview in output/<brand>/previews/. much faster than a full render."""
     total = edit.total
     points = [seg["new_start"] for seg in edit.segments[1:]]
     for start, end, _ in edit.windows:
@@ -988,7 +989,7 @@ def preview_cuts(video, work_dir, transcript, style, edit, grade, pad=1.5, only=
     preview_dir = fresh_preview_dir(work_dir, "cut_previews")
     with half_size_frames():
         clips, report = _render_windows(video, windows, edit, transcript, grade, dict(style), preview_dir)
-    joined = OUTPUT_DIR / f"{work_dir.name}_cuts_preview.mp4"
+    joined = output_folder(brand_name, "previews", work_dir.name) / f"{work_dir.name}_cuts_preview.mp4"
     join_clips(clips, preview_dir, joined)
     print(f"[engine] cut preview: {len(clips)} cuts, {sum(end - start for start, end, _ in windows):.1f}s of "
           f"{total:.1f}s rendered -> {joined.relative_to(ROOT)}")
@@ -996,13 +997,13 @@ def preview_cuts(video, work_dir, transcript, style, edit, grade, pad=1.5, only=
     return joined
 
 
-def preview_spots(video, work_dir, transcript, style, edit, grade, spots, pad=1.5, name="spot"):
-    """full-size render of just the trouble spots: `pad` seconds either side of each time
-    (finished-reel time), labelled, joined into output/<clip>_<name>.mp4 for the client to judge by ear."""
+def preview_spots(video, work_dir, transcript, style, edit, grade, spots, brand_name, pad=1.5, name="spot"):
+    """full-size render of just the trouble spots: `pad` seconds either side of each time (finished-reel
+    time), labelled, joined into output/<brand>/previews/.../<clip>_<name>.mp4 for the client to judge by ear."""
     windows = preview_windows(sorted(spots), pad, edit.total)
     preview_dir = fresh_preview_dir(work_dir, f"{name}_previews")
     clips, report = _render_windows(video, windows, edit, transcript, grade, dict(style), preview_dir, kind="spot")
-    joined = OUTPUT_DIR / f"{work_dir.name}_{name}.mp4"
+    joined = output_folder(brand_name, "previews", work_dir.name) / f"{work_dir.name}_{name}.mp4"
     join_clips(clips, preview_dir, joined)
     print(f"[engine] spot preview: {len(clips)} spot(s) -> {joined.relative_to(ROOT)}")
     print_report("spot", report)
@@ -1136,27 +1137,28 @@ def main():
     check_contrast(style, plan)
     edit = build(video, work_dir, plan, transcript, style,
                  {"grade": grade, "music": args.music, "music_volume": args.music_volume})
-    OUTPUT_DIR.mkdir(exist_ok=True)
 
     if args.spot:
         spots = [float(x) for x in args.spot.split(",")]
         name = "spot" + ("" if plan_path.name == "plan.json" else "_" + plan_path.stem)
-        preview_spots(video, work_dir, transcript, style, edit, grade, spots, args.pad, name)
+        preview_spots(video, work_dir, transcript, style, edit, grade, spots, brand.name, args.pad, name)
         return
     if args.cuts:
         only = {int(x) for x in args.only.split(",")} if args.only else None
-        preview_cuts(video, work_dir, transcript, style, edit, grade, args.pad, only)
+        preview_cuts(video, work_dir, transcript, style, edit, grade, brand.name, args.pad, only)
         return
 
-    out = OUTPUT_DIR / f"{work_dir.name}_{style_name}{'_draft' if args.draft else ''}.mp4"
+    # this render's own folder: output/<brand>/<talking-head|shop>/<date>_<time>_<job>/
+    folder = output_folder(brand.name, content_type(video), work_dir.name)
+    out = folder / f"{work_dir.name}_{style_name}{'_draft' if args.draft else ''}.mp4"
     render_reel(edit, work_dir, out, style_name, grade, args.draft)
     cover = None
     if args.cover:
-        cover = OUTPUT_DIR / f"{work_dir.name}_{style_name}_cover.jpg"
+        cover = folder / f"{work_dir.name}_{style_name}_cover.jpg"
         save_cover(out, cover, edit.total)
     pack = None
     if args.capcut:
-        pack = OUTPUT_DIR / f"{work_dir.name}_capcut"
+        pack = folder / f"{work_dir.name}_capcut"
         export_capcut(edit, work_dir, pack, plan, transcript, style)
     save_edl(work_dir, plan, edit, brand, style_name, grade, out, cover, pack)
     print(f"[engine] rendered {out}" + (f"\n[engine] cover    {cover}" if cover else ""))

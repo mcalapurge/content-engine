@@ -25,5 +25,5 @@ All styling and wording rules come from the brand's files. This skill only sets 
 2. fill shots + music for every reel (the brand's maps if it has them); list the reels using stand-in footage
 3. render 3 samples of different types (`--only`) → wait for their ok on the look
 4. render all in the background → hook-frame contact sheet + flash scan + audio check
-5. hand over `output/<name>/` and `captions.md` (post captions + carousels)
+5. hand over the set's folder in `output/<brand>/trial/` with its `captions.md` (post captions + carousels)
 6. update the brand guide's status line for this set

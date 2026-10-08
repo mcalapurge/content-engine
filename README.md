@@ -100,11 +100,28 @@ inputs/                raw footage + brand guide files, read only: talking-head/
 assets/                shared by every brand: styles/ (generic looks), fonts/, music/, sfx/
 references/            other people's reels broken down
 work/                  per-job working files (git-ignored)
-output/                finished videos (git-ignored)
+output/                finished videos by brand/type/date (git-ignored)
 docs/                  engine notes (render audit)
 scripts/               one-off maintenance (migrate_layout.py)
 tests/                 logic, content and render tests + golden copies of render recipes
 ```
+
+## outputs
+
+Every render gets its own folder, so a re-render never overwrites the last one and each client's
+videos stay together:
+
+```
+output/<brand>/<type>/<YYYY-MM-DD_HHMM>_<job>/
+output/mia/talking-head/2026-10-08_1430_intro/intro_mia.mp4        (+ cover, capcut pack)
+output/mia/vlog/2026-10-08_1502_lisbon-trip/vlog-lisbon-trip.mp4   (+ _no_music.mp4)
+output/beth/trial/2026-10-08_1610_october/october_01.mp4 ...       (+ captions.md)
+```
+
+The type comes from where the source sits in `inputs/` (`talking-head`, `shop`, `vlog`, `trial`;
+parts cut from a batch take count as `shop`). Cut and spot previews go in `previews/`, grade
+before/afters in `grade/`. Two renders in the same minute get `-2`, `-3`. Nothing is deleted
+automatically: clear out old drafts and previews by hand. Git ignores everything in `output/`.
 
 ## running
 

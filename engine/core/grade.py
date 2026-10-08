@@ -1,7 +1,7 @@
 """turns a brand's grade.json (capcut-style numbers) into an ffmpeg colour grade.
 
 usage (preview): python -m engine grade [video] --brand <name> [--at 3.0]
-saves output/<clip>_grade_compare.jpg - before on the left, after on the right.
+saves output/<brand>/grade/<date>_<time>_<clip>/<clip>_grade_compare.jpg - before on the left, after on the right.
 """
 import argparse
 import hashlib
@@ -9,7 +9,7 @@ import struct
 from pathlib import Path
 
 from engine.core.brand import add_brand_arg, get_brand
-from engine.core.common import vin, OUTPUT_DIR, WORK_DIR, find_bin, load_json, resolve_video, run, sdr_filter, video_info
+from engine.core.common import vin, WORK_DIR, output_folder, find_bin, load_json, resolve_video, run, sdr_filter, video_info
 
 HSL_NAMES = {"red": "r", "yellow": "y", "green": "g", "cyan": "c", "blue": "b",
              "magenta": "m", "purple": "m"}
@@ -131,8 +131,7 @@ def main():
         print(f"[engine] grading is switched off (or missing) in brands/{brand.name}/grade.json")
         return
     gf = grade_filter(g, has_huesaturation())
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    out = OUTPUT_DIR / f"{Path(video).stem}_{brand.name}_grade_compare.jpg"
+    out = output_folder(brand.name, "grade", Path(video).stem) / f"{Path(video).stem}_grade_compare.jpg"
     scale = "scale=-2:960"
     # left = before, right = after (no text labels, so it works without font setup)
     fc = f"[0:v]{sdr_filter(video)}{scale},split[a][b];[b]{gf}[g];[a]pad=iw+12:ih:0:0:white[a2];[a2][g]hstack"

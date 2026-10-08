@@ -27,7 +27,7 @@ Source files live in `inputs/shop/` (read only). Read the brand's brand.md first
    ```
    for n in 01 02 03; do P=work/<video>/parts/<video>_$n.mp4; .venv/bin/python -m engine transcribe $P --model medium; .venv/bin/python -m engine plan $P --brand <brand> --no-text; done
    ```
-   Each part gets its own work folder `work/<video>_<n>/`. Outputs: `output/<video>_<n>_<style>.mp4`.
+   Each part gets its own work folder `work/<video>_<n>/`. Each render lands in its own folder in `output/<brand>/shop/`.
 4. one combined summary table (length, hook, punch-in line), one approval, render all in the background, qc all, report in one table.
 
 ## B. compilation (several videos built from one file)

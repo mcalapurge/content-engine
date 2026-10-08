@@ -134,6 +134,24 @@ class WorkFolders(unittest.TestCase):
         other = self.tmp / "inputs" / "talking-head" / "beth" / "intro.mov"
         self.assertEqual(common.work_dir_for(other).name, "beth-intro")
 
+    def test_content_type_from_where_the_source_sits(self):
+        inputs, work = self.tmp / "inputs", self.tmp / "work"
+        cases = {inputs / "talking-head" / "mia" / "a.mov": "talking-head", inputs / "shop" / "b.mp4": "shop",
+                 inputs / "vlog" / "trip": "vlog", inputs / "trial" / "october": "trial",
+                 work / "batch" / "parts" / "batch_01.mp4": "shop", self.tmp / "elsewhere.mov": "talking-head"}
+        for source, kind in cases.items():
+            with self.subTest(source=str(source)):
+                self.assertEqual(common.content_type(source), kind)
+
+    def test_every_render_gets_its_own_folder(self):
+        with mock.patch.object(common, "OUTPUT_DIR", self.tmp / "output"):
+            first = common.output_folder("mia", "vlog", "lisbon trip")
+            second = common.output_folder("mia", "vlog", "lisbon trip")
+        self.assertEqual(first.parent, self.tmp / "output" / "mia" / "vlog")
+        self.assertRegex(first.name, r"^\d{4}-\d\d-\d\d_\d{4}_lisbon-trip$")
+        self.assertTrue(first.is_dir() and second.is_dir())
+        self.assertNotEqual(first, second)                  # same minute: -2, never the same folder
+
     def test_norm_and_safe_name(self):
         self.assertEqual(common.norm("Hello,"), "hello")
         self.assertEqual(common.norm("£700!"), "£700")

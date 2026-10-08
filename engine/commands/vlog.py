@@ -18,8 +18,8 @@ from pathlib import Path
 import numpy as np
 
 from engine.core.brand import add_brand_arg, get_brand
-from engine.core.common import (h264, vin, OUTPUT_DIR, ROOT, SFX_DIR, VIDEO_EXTS, die, find_bin, input_subfolders, job_dir,
-                                load_json, probe, run, save_json, sdr_filter)
+from engine.core.common import (h264, vin, ROOT, SFX_DIR, VIDEO_EXTS, die, find_bin, input_subfolders, job_dir,
+                                load_json, output_folder, probe, run, save_json, sdr_filter)
 from engine.core.grade import grade_filter, has_huesaturation, load_grade
 
 W, H, FPS = 1080, 1920, 30
@@ -351,7 +351,8 @@ def source_span(p):
 def cmd_render(folder, wd, args):
     plan = load_json(wd / "plan.json")
     pieces = plan["pieces"]
-    grade = "" if args.no_grade else grade_filter(load_grade(get_brand(args.brand, plan)), has_huesaturation())
+    brand = get_brand(args.brand, plan)
+    grade = "" if args.no_grade else grade_filter(load_grade(brand), has_huesaturation())
     music = plan.get("music")
     nat_vol = plan.get("nat_volume", 1.0)
 
@@ -399,7 +400,8 @@ def cmd_render(folder, wd, args):
             n_in += 1
 
     outs = []
-    base = OUTPUT_DIR / f"{wd.name}{'_draft' if args.draft else ''}"
+    # this render's own folder: output/<brand>/vlog/<date>_<time>_<folder>/
+    base = output_folder(brand.name, "vlog", wd.name.removeprefix("vlog-")) / f"{wd.name}{'_draft' if args.draft else ''}"
     f.append(f"[nat]volume={nat_vol}[natv];")
     if music:
         inputs += ["-ss", f"{plan.get('music_start', 0):.3f}", "-i", str(ROOT / music)]

@@ -54,7 +54,7 @@ Read the brand's brand.md ("vlog" / b-roll edit defaults) first: length, how fas
    ```
    .venv/bin/python -m engine vlog render inputs/vlog/<folder> [--no-grade] [--draft]     # graded with the plan's brand
    ```
-   Output `output/vlog-<folder>.mp4`; with music also `_no_music.mp4` (natural sound only, for their own voiceover + music in CapCut).
+   Output `output/<brand>/vlog/<date>_<time>_<folder>/vlog-<folder>.mp4`; with music also `_no_music.mp4` (natural sound only, for their own voiceover + music in CapCut).
 7. **check** (checks.md): length, freezes, frames at jump cuts, cut timing vs beats if music.
 
 ## feedback history

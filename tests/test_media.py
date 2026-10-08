@@ -30,6 +30,11 @@ def has_audio(path):
     return any(s["codec_type"] == "audio" for s in probe(path)["streams"])
 
 
+def outputs(box, kind, name):
+    """files called `name` in the sandbox's output/beth/<kind>/<date>_<time>_<job>/ folders, oldest first."""
+    return sorted((box.output / "beth" / kind).glob(f"*/{name}"))
+
+
 def click_track(path, bpm, secs):
     """a click on every beat, to test beat detection and cutting to music."""
     period = 60 / bpm
@@ -129,6 +134,13 @@ class TalkingHeadReel(unittest.TestCase):
 
     def test_the_reel(self):
         out = Path(self.edl["output"])
+        # output/<brand>/<type>/<date>_<time>_<job>/<job>_<style>_draft.mp4, with the cover and pack beside it
+        folder = out.parent
+        self.assertEqual(folder.parent, self.box.output / "beth" / "talking-head")
+        self.assertRegex(folder.name, r"^\d{4}-\d\d-\d\d_\d{4}_reel(-\d+)?$")
+        self.assertEqual(out.name, "reel_beth_draft.mp4")
+        self.assertEqual(Path(self.edl["cover"]).parent, folder)
+        self.assertEqual(Path(self.edl["capcut_pack"]).parent, folder)
         stream = video_stream(out)
         self.assertEqual((stream["width"], stream["height"], stream["codec_name"]), (1080, 1920, "h264"))
         self.assertEqual(stream["r_frame_rate"], "30/1")
@@ -166,18 +178,20 @@ class TalkingHeadReel(unittest.TestCase):
         out = self.box.engine("render", self.video, "--cuts").stdout
         self.assertIn("cut preview:", out)
         self.assertNotIn("FLASH", out)
-        preview = self.box.output / "reel_cuts_preview.mp4"
+        preview = outputs(self.box, "previews", "reel_cuts_preview.mp4")[-1]
         self.assertEqual(video_stream(preview)["width"], 540)                 # half size
 
     def test_spot_preview(self):
         out = self.box.engine("render", self.video, "--spot", "2,6", "--pad", "1").stdout
         self.assertIn("spot  2 at", out)
-        self.assertEqual(video_stream(self.box.output / "reel_spot.mp4")["width"], 1080)
+        self.assertEqual(video_stream(outputs(self.box, "previews", "reel_spot.mp4")[-1])["width"], 1080)
 
     def test_another_style_ungraded(self):
         self.box.engine("render", self.video, "--draft", "--style", "editorial", "--no-grade")
-        out = self.box.output / "reel_editorial_draft.mp4"
-        self.assertTrue(out.exists())
+        renders = outputs(self.box, "talking-head", "reel_*_draft.mp4")
+        self.assertEqual(renders[-1].name, "reel_editorial_draft.mp4")
+        self.assertNotEqual(renders[-1].parent, Path(self.edl["output"]).parent)     # a new folder, nothing overwritten
+        self.assertTrue(Path(self.edl["output"]).exists())
         edl = json.loads((self.wd / "edl.json").read_text(encoding="utf-8"))
         self.assertEqual((edl["style"], edl["graded"]), ("editorial", False))
         self.assertNotIn("lut3d", (self.wd / "filter.txt").read_text(encoding="utf-8"))
@@ -261,7 +275,8 @@ class VlogAndTextReels(unittest.TestCase):
         box.engine("vlog", "render", self.folder, "--draft")
         total = sum(p["dur"] for p in pieces)
         for name in ("vlog-trip_draft.mp4", "vlog-trip_draft_no_music.mp4"):
-            out = box.output / name
+            out = outputs(box, "vlog", name)[-1]
+            self.assertTrue(out.parent.name.endswith("_trip"))
             self.assertAlmostEqual(duration(out), total, delta=0.2, msg=name)
             self.assertEqual(video_stream(out)["height"], 1920)
 
@@ -283,14 +298,18 @@ class VlogAndTextReels(unittest.TestCase):
             reel["music"] = str(self.music)
         plan_path.write_text(json.dumps(plan), encoding="utf-8")
         box.engine("textreel", "render", "set", "--only", "1", "--draft")
-        reels = sorted((box.output / "set").glob("*.mp4"))
+        reels = outputs(box, "trial", "*.mp4")
         self.assertEqual(len(reels), 1)
+        self.assertTrue(reels[0].parent.name.endswith("_set"))
         from engine.commands.textreel import beat_lengths
         expected = sum(beat_lengths(["I charged £150 + £700", "same video", "see my carousel"], bpm=120))
         self.assertAlmostEqual(duration(reels[0]), expected, delta=0.3)       # reading time, snapped to the beat
-        self.assertFalse((box.output / "set" / "captions.md").exists())       # only written on a full render
+        self.assertEqual(outputs(box, "trial", "captions.md"), [])            # only written on a full render
         box.engine("textreel", "render", "set", "--draft")
-        self.assertIn("(carousel: pricing)", (box.output / "set" / "captions.md").read_text(encoding="utf-8"))
+        captions = outputs(box, "trial", "captions.md")
+        self.assertEqual(len(captions), 1)
+        self.assertEqual(len(list(captions[0].parent.glob("*.mp4"))), 2)      # the full set in its own folder
+        self.assertIn("(carousel: pricing)", captions[0].read_text(encoding="utf-8"))
 
 
 @needs_ffmpeg
